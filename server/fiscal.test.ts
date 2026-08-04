@@ -54,6 +54,22 @@ describe("Módulo Fiscal AGT", () => {
       const hash2 = generateDocumentHash({ ...params, fullNumber: "FT A/2" });
       expect(hash1).not.toBe(hash2);
     });
+
+    it("deve encadear a assinatura com o hash do documento anterior", () => {
+      const params = {
+        issueDate: "2026-06-17",
+        systemDate: "2026-06-17",
+        fullNumber: "FT A/3",
+        grossTotal: 11400,
+      };
+      const hashFirst = generateDocumentHash({ ...params, previousHash: "" });
+      const hashChained = generateDocumentHash({
+        ...params,
+        previousHash: "hashAnteriorDaSerie",
+      });
+      // Como o encadeamento muda os dados assinados, os hashes devem diferir.
+      expect(hashFirst).not.toBe(hashChained);
+    });
   });
 
   describe("getHashControl", () => {

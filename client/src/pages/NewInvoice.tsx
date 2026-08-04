@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+oimport { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { formatCurrency, DOCUMENT_TYPE_LABELS, PAYMENT_METHODS, VAT_RATES } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -31,6 +31,7 @@ export default function NewInvoice() {
   const [dueDate, setDueDate] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("transferencia");
   const [notes, setNotes] = useState("");
+  const [relatedInvoiceNumber, setRelatedInvoiceNumber] = useState("");
   const [applyWithholdingTax, setApplyWithholdingTax] = useState(false);
   const [lines, setLines] = useState<LineItem[]>([{ description: "", quantity: 1, unitPrice: 0, vatRate: 14, discount: 0 }]);
 
@@ -118,6 +119,7 @@ export default function NewInvoice() {
       dueDate: dueDate ? new Date(dueDate) : undefined,
       paymentMethod: paymentMethod as any,
       notes,
+      relatedInvoiceNumber: ["NC", "ND", "RC", "RG"].includes(documentType) && relatedInvoiceNumber ? relatedInvoiceNumber : undefined,
       withholdingTaxPercent: applyWithholdingTax ? 6.5 : 0,
       items: lines.map(l => ({
         productId: l.productId,
@@ -154,7 +156,7 @@ export default function NewInvoice() {
         {/* Cabeçalho do documento */}
         <div className="card-elevated p-5">
           <h2 className="text-sm font-semibold text-foreground mb-4">Dados do Documento</h2>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="space-y-1.5">
               <Label>Tipo de Documento *</Label>
               <Select value={documentType} onValueChange={setDocumentType}>
@@ -189,6 +191,16 @@ export default function NewInvoice() {
               <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} min={issueDate} />
             </div>
           </div>
+          
+          {["NC", "ND", "RC", "RG"].includes(documentType) && (
+            <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="col-span-2 space-y-1.5">
+                <Label>Fatura Referente (Nº do Documento) *</Label>
+                <Input type="text" value={relatedInvoiceNumber} onChange={e => setRelatedInvoiceNumber(e.target.value)} placeholder="Ex: FT 2026/1" required={["NC", "ND"].includes(documentType)} />
+                <p className="text-xs text-muted-foreground mt-1">Obrigatório por lei ao anular ou rectificar uma fatura.</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Cliente */}

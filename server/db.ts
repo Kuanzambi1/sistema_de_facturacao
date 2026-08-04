@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, like, lt, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -160,9 +160,10 @@ export async function listClients(search?: string, page = 1, limit = 20) {
   const db = await getDb();
   if (!db) return { data: [], total: 0 };
   const offset = (page - 1) * limit;
-  const where = search
-    ? or(like(clients.name, `%${search}%`), like(clients.nif, `%${search}%`), like(clients.email, `%${search}%`))
-    : undefined;
+  const conditions = [];
+  conditions.push(eq(clients.isActive, true));
+  if (search) conditions.push(or(like(clients.name, `%${search}%`), like(clients.nif, `%${search}%`), like(clients.email, `%${search}%`)));
+  const where = and(...conditions);
   const [data, countResult] = await Promise.all([
     db.select().from(clients).where(where).orderBy(desc(clients.createdAt)).limit(limit).offset(offset),
     db.select({ count: sql<number>`count(*)` }).from(clients).where(where),
@@ -203,9 +204,10 @@ export async function listSuppliers(search?: string, page = 1, limit = 20) {
   const db = await getDb();
   if (!db) return { data: [], total: 0 };
   const offset = (page - 1) * limit;
-  const where = search
-    ? or(like(suppliers.name, `%${search}%`), like(suppliers.nif, `%${search}%`))
-    : undefined;
+  const conditions = [];
+  conditions.push(eq(suppliers.isActive, true));
+  if (search) conditions.push(or(like(suppliers.name, `%${search}%`), like(suppliers.nif, `%${search}%`)));
+  const where = and(...conditions);
   const [data, countResult] = await Promise.all([
     db.select().from(suppliers).where(where).orderBy(desc(suppliers.createdAt)).limit(limit).offset(offset),
     db.select({ count: sql<number>`count(*)` }).from(suppliers).where(where),
@@ -257,14 +259,24 @@ export async function createProductCategory(data: typeof productCategories.$infe
 }
 
 // ─── Produtos / Serviços ──────────────────────────────────────────────────────
+export async function getNextProductCode(type: string) {
+  const db = await getDb();
+  if (!db) return type === "produto" ? "PRD0001" : "SVC0001";
+  const [result] = await db.select({ count: sql<number>`count(*)` }).from(products).where(eq(products.type, type as any));
+  const count = Number(result?.count ?? 0) + 1;
+  const prefix = type === "produto" ? "PRD" : "SVC";
+  return `${prefix}${String(count).padStart(4, '0')}`;
+}
+
 export async function listProducts(search?: string, type?: string, page = 1, limit = 20) {
   const db = await getDb();
   if (!db) return { data: [], total: 0 };
   const offset = (page - 1) * limit;
   const conditions = [];
+  conditions.push(eq(products.isActive, true));
   if (search) conditions.push(or(like(products.name, `%${search}%`), like(products.code, `%${search}%`)));
   if (type) conditions.push(eq(products.type, type as any));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = and(...conditions);
   const [data, countResult] = await Promise.all([
     db.select().from(products).where(where).orderBy(products.name).limit(limit).offset(offset),
     db.select({ count: sql<number>`count(*)` }).from(products).where(where),
@@ -304,7 +316,10 @@ export async function deleteProduct(id: number) {
 export async function listInvoiceSeries(documentType?: string) {
   const db = await getDb();
   if (!db) return [];
-  const where = documentType ? eq(invoiceSeries.documentType, documentType as any) : undefined;
+  const conditions = [];
+  conditions.push(eq(invoiceSeries.isActive, true));
+  if (documentType) conditions.push(eq(invoiceSeries.documentType, documentType as any));
+  const where = and(...conditions);
   return db.select().from(invoiceSeries).where(where).orderBy(invoiceSeries.code);
 }
 
@@ -325,11 +340,36 @@ export async function createInvoiceSeries(data: typeof invoiceSeries.$inferInser
 export async function incrementSeriesNumber(seriesId: number): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.update(invoiceSeries)
-    .set({ lastNumber: sql`${invoiceSeries.lastNumber} + 1` })
-    .where(eq(invoiceSeries.id, seriesId));
-  const result = await db.select({ lastNumber: invoiceSeries.lastNumber }).from(invoiceSeries).where(eq(invoiceSeries.id, seriesId)).limit(1);
-  return result[0]?.lastNumber ?? 1;
+  // Transação + FOR UPDATE garante a exclusividade do número sob concorrência
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({ lastNumber: invoiceSeries.lastNumber })
+      .from(invoiceSeries)
+      .where(eq(invoiceSeries.id, seriesId))
+      .for("update");
+    const next = (row?.lastNumber ?? 0) + 1;
+    await tx
+      .update(invoiceSeries)
+      .set({ lastNumber: next, updatedAt: new Date() })
+      .where(eq(invoiceSeries.id, seriesId));
+    return next;
+  });
+}
+
+/**
+ * Devolve o hash do documento imediatamente anterior da série, para
+ * encadear as assinaturas (imutabilidade) conforme os requisitos AGT.
+ */
+export async function getPreviousInvoiceHash(seriesId: number, number: number): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db
+    .select({ hash: invoices.hash })
+    .from(invoices)
+    .where(and(eq(invoices.seriesId, seriesId), lt(invoices.number, number)))
+    .orderBy(desc(invoices.number))
+    .limit(1);
+  return row?.hash ?? null;
 }
 
 // ─── Documentos Fiscais ───────────────────────────────────────────────────────
@@ -402,6 +442,81 @@ export async function updateInvoicePdfUrl(id: number, pdfUrl: string) {
   await db.update(invoices).set({ pdfUrl, updatedAt: new Date() }).where(eq(invoices.id, id));
 }
 
+/**
+ * Aplica automaticamente os movimentos de stock decorrentes de um documento
+ * fiscal. Em documentos de saída (FT/FR/FS/FA/ND/RC/RG) baixa o stock;
+ * numa Nota de Crédito (NC) repõe o stock devolvido.
+ */
+export async function applyStockMovementsForInvoice(options: {
+  invoiceId: number;
+  items: Array<{ productId?: number | null; quantity: string; }>;
+  documentType: string;
+  reference: string;
+  createdBy?: number | null;
+}): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const { invoiceId, items, documentType, reference, createdBy } = options;
+
+  const productIds = items.filter(i => i.productId).map(i => i.productId!);
+  if (productIds.length === 0) return false;
+
+  const productRows = await db.select().from(products).where(inArray(products.id, productIds));
+  const productMap = new Map(productRows.map(p => [p.id, p]));
+
+  const isRestock = documentType === "NC";
+  const movementType = isRestock ? "entrada" : "saida";
+
+  const movements: Array<typeof inventoryMovements.$inferInsert> = [];
+  for (const item of items) {
+    if (!item.productId) continue;
+    const product = productMap.get(item.productId);
+    if (!product || product.type !== "produto" || !product.stockControl) continue;
+
+    const qty = Number(item.quantity);
+    const delta = isRestock ? qty : -qty;
+    const unitCost = product.costPrice != null ? Number(product.costPrice) : null;
+
+    movements.push({
+      productId: product.id,
+      type: movementType as any,
+      quantity: String(qty),
+      unitCost: unitCost != null ? String(unitCost) : null,
+      totalCost: unitCost != null ? String(qty * unitCost) : null,
+      reference,
+      invoiceId,
+      createdBy: createdBy ?? null,
+      notes: `Doc. ${reference}`,
+    });
+
+    await db.update(products)
+      .set({ currentStock: sql`${products.currentStock} + ${delta}`, updatedAt: new Date() })
+      .where(eq(products.id, product.id));
+  }
+
+  if (movements.length > 0) {
+    await db.insert(inventoryMovements).values(movements as any);
+  }
+  return true;
+}
+
+/**
+ * Conta notas de crédito (NC) que referenciam uma fatura, para efeitos de
+ * validação de anulação de documentos pagos.
+ */
+export async function countCreditNotesForInvoice(invoiceId: number, fullNumber: string | null): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const conditions = [eq(invoices.documentType, "NC")];
+  if (fullNumber) conditions.push(eq(invoices.relatedInvoiceNumber, fullNumber));
+  conditions.push(eq(invoices.relatedInvoiceId, invoiceId));
+  const [res] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(invoices)
+    .where(or(...conditions));
+  return Number(res?.count ?? 0);
+}
+
 // ─── Inventário ───────────────────────────────────────────────────────────────
 export async function listInventoryMovements(productId?: number, page = 1, limit = 20) {
   const db = await getDb();
@@ -435,9 +550,9 @@ export async function getDashboardStats() {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const [totalInvoiced, pendingInvoices, monthlyInvoiced, totalClients, totalProducts, lowStockProducts] = await Promise.all([
-    db.select({ total: sql<string>`COALESCE(SUM(totalAmount),0)` }).from(invoices).where(eq(invoices.status, "emitida")),
+    db.select({ total: sql<string>`COALESCE(SUM(totalAmount),0)` }).from(invoices).where(sql`${invoices.status} NOT IN ('rascunho','anulada')`),
     db.select({ total: sql<string>`COALESCE(SUM(totalAmount),0)`, count: sql<number>`count(*)` }).from(invoices).where(or(eq(invoices.status, "emitida"), eq(invoices.status, "parcialmente_paga"))),
-    db.select({ total: sql<string>`COALESCE(SUM(totalAmount),0)` }).from(invoices).where(and(gte(invoices.issueDate, startOfMonth), or(eq(invoices.status, "emitida"), eq(invoices.status, "paga")))),
+    db.select({ total: sql<string>`COALESCE(SUM(totalAmount),0)` }).from(invoices).where(and(gte(invoices.issueDate, startOfMonth), sql`${invoices.status} NOT IN ('rascunho','anulada')`)),
     db.select({ count: sql<number>`count(*)` }).from(clients).where(eq(clients.isActive, true)),
     db.select({ count: sql<number>`count(*)` }).from(products).where(eq(products.isActive, true)),
     db.select({ count: sql<number>`count(*)` }).from(products).where(and(eq(products.stockControl, true), sql`${products.currentStock} <= ${products.minStock}`)),

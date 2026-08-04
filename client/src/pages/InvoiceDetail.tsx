@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { formatCurrency, formatDate, formatDateTime, DOCUMENT_TYPE_LABELS, STATUS_LABELS, STATUS_COLORS, PAYMENT_METHODS, downloadFile, numeroPorExtenso } from "@/lib/utils";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Download, FileX, CheckCircle2, Printer, Shield, Hash } from "lucide-react";
+import { ArrowLeft, Download, FileX, CheckCircle2, Printer, Shield, Hash, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation, useParams } from "wouter";
 import { toast } from "sonner";
@@ -62,6 +62,7 @@ export default function InvoiceDetail() {
       const doc = new jsPDF("p", "mm", "a4");
       
       const drawText = (text: string, x: number, y: number, size = 10, font = "helvetica", style = "normal", options?: any) => {
+        doc.setTextColor(0, 0, 0);
         doc.setFontSize(size);
         doc.setFont(font, style);
         doc.text(text, x, y, options);
@@ -89,6 +90,10 @@ export default function InvoiceDetail() {
         if (invoice.hashControl) {
           drawText(`Hash: ${invoice.hashControl}`, 10, 53, 8, "courier", "normal");
         }
+      }
+      
+      if (invoice.relatedInvoiceNumber) {
+        drawText(`Referente à fatura: ${invoice.relatedInvoiceNumber}`, 135, 48, 9, "helvetica", "bold");
       }
 
       doc.setDrawColor(220, 220, 220);
@@ -168,6 +173,11 @@ export default function InvoiceDetail() {
       drawText("Valor por extenso:", 10, finalY + 7, 8, "helvetica", "bold");
       drawText(numeroPorExtenso(Number(invoice.totalAmount)), 10, finalY + 12, 8, "helvetica", "italic");
 
+      if (company?.bankIban) {
+        drawText("Dados para Pagamento / IBAN:", 10, finalY + 22, 8, "helvetica", "bold");
+        drawText(`${company.bankName ? company.bankName + " - " : ""}${company.bankIban}`, 10, finalY + 27, 8, "helvetica", "normal");
+      }
+
       const pageHeight = doc.internal.pageSize.height;
       doc.setFontSize(8);
       doc.setTextColor(100, 100, 100);
@@ -228,21 +238,35 @@ export default function InvoiceDetail() {
         </div>
       </div>
 
-      {/* ATCUD e Assinatura */}
-      {invoice.atcud && (
-        <div className="flex items-start gap-4 p-4 bg-brand-light border border-brand-border rounded-lg">
-          <Shield className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-primary uppercase tracking-wide">Código Único de Documento (ATCUD)</p>
-            <p className="font-mono text-sm text-foreground mt-0.5 break-all">{invoice.atcud}</p>
-            {invoice.hashControl && (
-              <p className="text-xs text-muted-foreground mt-1">
-                <span className="font-medium">Hash:</span> <span className="font-mono">{invoice.hashControl}</span>
-              </p>
-            )}
+      {/* Informações Fiscais Adicionais */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* ATCUD e Assinatura */}
+        {invoice.atcud && (
+          <div className="flex items-start gap-4 p-4 bg-brand-light border border-brand-border rounded-lg">
+            <Shield className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-primary uppercase tracking-wide">Código Único de Documento (ATCUD)</p>
+              <p className="font-mono text-sm text-foreground mt-0.5 break-all">{invoice.atcud}</p>
+              {invoice.hashControl && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  <span className="font-medium">Hash:</span> <span className="font-mono">{invoice.hashControl}</span>
+                </p>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+        
+        {/* Documento Referente */}
+        {invoice.relatedInvoiceNumber && (
+          <div className="flex items-start gap-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <FileText className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Documento Referente</p>
+              <p className="text-sm text-foreground mt-0.5 font-medium">{invoice.relatedInvoiceNumber}</p>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Dados do documento */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -379,6 +403,17 @@ export default function InvoiceDetail() {
         <div className="card-elevated p-5">
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Observações</h2>
           <p className="text-sm text-foreground">{invoice.notes}</p>
+        </div>
+      )}
+
+      {/* Dados de Pagamento */}
+      {company?.bankIban && (
+        <div className="card-elevated p-5">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Dados para Pagamento</h2>
+          <p className="text-sm text-foreground">
+            {company.bankName && <span className="font-medium mr-2">{company.bankName}</span>}
+            IBAN: <span className="font-mono">{company.bankIban}</span>
+          </p>
         </div>
       )}
 

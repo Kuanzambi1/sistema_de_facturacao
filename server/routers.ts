@@ -11,14 +11,14 @@ import {
   createClient, createInventoryMovement, createInvoice, createInvoiceSeries,
   createProduct, createProductCategory, createSupplier, deleteClient,
   deleteProduct, deleteSupplier, getClientById, getCompany, getDashboardStats,
-  getInvoiceById, getInvoiceItems, getMonthlySales, getProductById,
-  getSeriesById, getSupplierById, getTopClients, getVatReport,
+  getInvoiceById, getInvoiceItems, getMonthlySales, getProductById, getNextProductCode,
+  getPreviousInvoiceHash, getSeriesById, getSupplierById, getTopClients, getVatReport,
   incrementSeriesNumber, listClients, listInventoryMovements, listInvoiceSeries,
   listInvoices, listProductCategories, listProducts, listSuppliers,
   updateClient, updateInvoicePdfUrl, updateInvoiceStatus, updateProduct,
   updateSupplier, upsertCompany, getUserByEmail, createUser,
   listUsers, updateUserRole, getUserCount, getUserById,
-  updateUser, disableUser
+  updateUser, disableUser, applyStockMovementsForInvoice, countCreditNotesForInvoice
 } from "./db";
 import {
   DOCUMENT_TYPES, VAT_RATES, ANGOLA_PROVINCES, generateATCUD,
@@ -266,10 +266,7 @@ export const appRouter = router({
     getNextCode: protectedProcedure
       .input(z.object({ type: z.enum(["produto", "servico"]) }))
       .query(async ({ input }) => {
-        const countInfo = await listProducts(undefined, input.type, 1, 1);
-        const count = countInfo.total + 1;
-        const prefix = input.type === "produto" ? "PRD" : "SVC";
-        return `${prefix}${String(count).padStart(4, '0')}`;
+        return getNextProductCode(input.type);
       }),
 
     createCategory: protectedProcedure
@@ -294,10 +291,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         if (!input.code) {
-          const countInfo = await listProducts(undefined, input.type, 1, 1);
-          const count = countInfo.total + 1;
-          const prefix = input.type === "produto" ? "PRD" : "SVC";
-          input.code = `${prefix}${String(count).padStart(4, '0')}`;
+          input.code = await getNextProductCode(input.type);
         }
         return createProduct(input as any);
       }),
@@ -465,14 +459,15 @@ export const appRouter = router({
           isService: input.items[idx].type === "servico" || (i.productCode?.startsWith("SVC") ?? false),
         })), input.withholdingTaxPercent);
 
-        // Gerar hash
+        // Gerar hash (com encadeamento sobre o documento anterior da série)
         const now = new Date();
+        const previousHash = (await getPreviousInvoiceHash(input.seriesId, number)) ?? "";
         const hash = generateDocumentHash({
           issueDate: input.issueDate.toISOString().substring(0, 10),
           systemDate: now.toISOString().substring(0, 10),
           fullNumber,
           grossTotal: totals.totalAmount,
-          previousHash: "",
+          previousHash,
         });
         const hashControl = getHashControl(hash);
 
@@ -519,6 +514,15 @@ export const appRouter = router({
         };
 
         const invoice = await createInvoice(invoiceData as any, calculatedItems as any);
+        if (invoice) {
+          await applyStockMovementsForInvoice({
+            invoiceId: invoice.id,
+            items: calculatedItems,
+            documentType: input.documentType,
+            reference: fullNumber,
+            createdBy: ctx.user.id,
+          });
+        }
         return invoice;
       }),
 
@@ -530,6 +534,30 @@ export const appRouter = router({
         paidAmount: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
+        const current = await getInvoiceById(input.id);
+        if (!current) throw new TRPCError({ code: "NOT_FOUND" });
+
+        // Um documento anulado não pode voltar a ter estado activo
+        if (current.status === "anulada" && input.status !== "anulada") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Um documento anulado não pode mudar de estado." });
+        }
+
+        // Anular exige nota de crédito quando o documento já foi pago, por lei.
+        if (input.status === "anulada") {
+          if (current.status === "anulada") {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Documento já está anulado." });
+          }
+          if (current.status === "paga" || current.status === "parcialmente_paga") {
+            const ncCount = await countCreditNotesForInvoice(current.id, current.fullNumber ?? null);
+            if (ncCount === 0) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "Documento pago só pode ser anulado mediante a emissão de uma nota de crédito (NC) que o referencie.",
+              });
+            }
+          }
+        }
+
         const { id, status, ...extra } = input;
         return updateInvoiceStatus(id, status, extra as any);
       }),

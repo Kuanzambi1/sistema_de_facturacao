@@ -232,7 +232,7 @@ export function generateSAFTXML(data: {
       <InvoiceNo>${escapeXML(inv.fullNumber)}</InvoiceNo>
       <ATCUD>${escapeXML(inv.atcud ?? "")}</ATCUD>
       <DocumentStatus>
-        <InvoiceStatus>${inv.status === "anulada" ? "A" : "N"}</InvoiceStatus>
+        <InvoiceStatus>${getInvoiceStatus(inv.status)}</InvoiceStatus>
         <InvoiceStatusDate>${formatDateISO(inv.updatedAt)}</InvoiceStatusDate>
         <SourceID>Sistema</SourceID>
         <SourceBilling>P</SourceBilling>
@@ -256,6 +256,7 @@ export function generateSAFTXML(data: {
         <NetTotal>${Number(inv.subtotal).toFixed(2)}</NetTotal>
         <GrossTotal>${Number(inv.totalAmount).toFixed(2)}</GrossTotal>
       </DocumentTotals>
+      ${inv.status === "paga" || inv.status === "parcialmente_paga" ? getPaymentXML(inv) : ""}
     </Invoice>`;
   }).join("");
 
@@ -281,8 +282,8 @@ export function generateSAFTXML(data: {
     <CurrencyCode>AOA</CurrencyCode>
     <DateCreated>${now.substring(0, 10)}</DateCreated>
     <TaxEntity>Global</TaxEntity>
-    <ProductCompanyTaxID>SistemaFacturacao</ProductCompanyTaxID>
-    <SoftwareCertificateNumber>0000</SoftwareCertificateNumber>
+    <ProductCompanyTaxID>${escapeXML(company.nif ?? "")}</ProductCompanyTaxID>
+    <SoftwareCertificateNumber>${escapeXML(company.softwareValidationNumber ?? "")}</SoftwareCertificateNumber>
     <ProductID>SistemaFacturacaoAGT</ProductID>
     <ProductVersion>1.0.0</ProductVersion>
   </Header>
@@ -295,6 +296,31 @@ export function generateSAFTXML(data: {
     </SalesInvoices>
   </SourceDocuments>
 </AuditFile>`;
+}
+
+function getInvoiceStatus(status: string): string {
+  if (status === "anulada") return "A";
+  if (status === "paga") return "F";
+  return "N";
+}
+
+function getPaymentXML(inv: any): string {
+  const paymentDate = inv.paymentDate ? formatDateISO(inv.paymentDate) : formatDateISO(inv.issueDate);
+  const paymentAmount = inv.paidAmount ?? inv.totalAmount;
+  const paymentMethod = inv.paymentMethod ?? "outro";
+  const methodLabels: Record<string, string> = {
+    numerario: "Numerário",
+    transferencia: "Transferência Bancária",
+    cheque: "Cheque",
+    cartao: "Cartão de Crédito/Débito",
+    outro: "Outro",
+  };
+  return `
+      <Payment>
+        <PaymentDate>${paymentDate}</PaymentDate>
+        <PaymentAmount>${Number(paymentAmount).toFixed(2)}</PaymentAmount>
+        <PaymentMethod>${methodLabels[paymentMethod] ?? "Outro"}</PaymentMethod>
+      </Payment>`;
 }
 
 function escapeXML(str: string): string {

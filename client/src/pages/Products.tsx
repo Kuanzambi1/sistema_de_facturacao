@@ -182,11 +182,11 @@ export default function Products() {
                 <Textarea {...register("description")} rows={2} placeholder="Descrição detalhada..." />
               </div>
               <div className="space-y-1.5">
-                <Label>Preço Unitário (AOA) *</Label>
+                <Label>Preço de Venda (AOA) *</Label>
                 <Input {...register("price", { required: true })} type="number" step="0.01" placeholder="0.00" className={errors.price ? "border-destructive" : ""} />
               </div>
               <div className="space-y-1.5">
-                <Label>Preço de Custo (AOA)</Label>
+                <Label>Preço de Compra (AOA)</Label>
                 <Input {...register("costPrice")} type="number" step="0.01" placeholder="0.00" />
               </div>
               {productType === "produto" && (
