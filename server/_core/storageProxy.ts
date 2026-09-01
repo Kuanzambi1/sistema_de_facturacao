@@ -1,8 +1,15 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { ENV } from "./env";
+import { sdk } from "./sdk";
+
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  sdk.authenticateRequest(req)
+    .then(() => next())
+    .catch(() => res.status(401).send("Unauthorized"));
+}
 
 export function registerStorageProxy(app: Express) {
-  app.get("/manus-storage/*", async (req, res) => {
+  app.get("/manus-storage/*", requireAuth, async (req, res) => {
     const key = (req.params as Record<string, string>)[0];
     if (!key) {
       res.status(400).send("Missing storage key");

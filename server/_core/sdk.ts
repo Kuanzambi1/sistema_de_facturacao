@@ -279,8 +279,13 @@ class SDKServer {
     const signedInAt = new Date();
     let user = await db.getUserByOpenId(sessionUserId);
 
-    // If user not in DB, sync from OAuth server automatically
+    // Se o utilizador ainda não existir, tenta sincronizar a partir do OAuth
+    // externo. Num ambiente de SaaS (sem serviço OAuth configurado) o login é
+    // 100% local e este passo é omitido.
     if (!user) {
+      if (!ENV.oAuthServerUrl) {
+        throw ForbiddenError("User not found");
+      }
       try {
         const userInfo = await this.getUserInfoWithJwt(sessionCookie ?? "");
         await db.upsertUser({

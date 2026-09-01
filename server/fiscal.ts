@@ -336,3 +336,73 @@ function formatDateISO(date: Date | string): string {
   const d = new Date(date);
   return d.toISOString().substring(0, 10);
 }
+
+// ─── SAF-T (AO) de Inventário ─────────────────────────────────────────────────
+export function generateSAFTInventoryXML(data: {
+  company: any;
+  products: any[];
+  date: string;
+}): string {
+  const { company, products, date } = data;
+  const now = new Date().toISOString();
+
+  const productXML = products.map((p) => `
+    <Product>
+      <ProductCode>${escapeXML(p.code ?? "")}</ProductCode>
+      <ProductDescription>${escapeXML(p.name)}</ProductDescription>
+      <ProductNumberCode>${escapeXML(p.code ?? "")}</ProductNumberCode>
+      <ProductType>${p.type === "servico" ? "S" : "P"}</ProductType>
+      <ProductGroup>${escapeXML((p as any).categoryName ?? "")}</ProductGroup>
+      <Unit>${escapeXML(p.unit ?? "UN")}</Unit>
+      <UnitPrice>${Number(p.price ?? 0).toFixed(4)}</UnitPrice>
+      <Stock>
+        <StockProduct>${Number(p.currentStock ?? 0).toFixed(4)}</StockProduct>
+        <StockDate>${date}</StockDate>
+      </Stock>
+    </Product>`).join("");
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<AuditFile xmlns="urn:OECD:StandardAuditFile-Tax:AO_1.01_01"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Header>
+    <AuditFileVersion>1.01_01</AuditFileVersion>
+    <CompanyID>${escapeXML(company.nif)}</CompanyID>
+    <TaxRegistrationNumber>${escapeXML(company.nif)}</TaxRegistrationNumber>
+    <TaxAccountingBasis>F</TaxAccountingBasis>
+    <CompanyName>${escapeXML(company.name)}</CompanyName>
+    <BusinessName>${escapeXML(company.name)}</BusinessName>
+    <CompanyAddress>
+      <AddressDetail>${escapeXML(company.address ?? "")}</AddressDetail>
+      <City>${escapeXML(company.city ?? "")}</City>
+      <Province>${escapeXML(company.province ?? "")}</Province>
+      <Country>AO</Country>
+    </CompanyAddress>
+    <FiscalYear>${new Date(date).getFullYear()}</FiscalYear>
+    <StartDate>${date}</StartDate>
+    <EndDate>${date}</EndDate>
+    <CurrencyCode>AOA</CurrencyCode>
+    <DateCreated>${now.substring(0, 10)}</DateCreated>
+    <TaxEntity>Global</TaxEntity>
+    <ProductCompanyTaxID>${escapeXML(company.nif ?? "")}</ProductCompanyTaxID>
+    <SoftwareCertificateNumber>${escapeXML(company.softwareValidationNumber ?? "")}</SoftwareCertificateNumber>
+    <ProductID>SistemaFacturacaoAGT</ProductID>
+    <ProductVersion>1.0.0</ProductVersion>
+  </Header>
+  <MasterFiles>
+    <Products>
+      <NumberOfProducts>${products.length}</NumberOfProducts>
+      ${productXML}
+    </Products>
+  </MasterFiles>
+</AuditFile>`;
+}
+
+// ─── Declaração Periódica de IVA (CSV) ────────────────────────────────────────
+export function generateVATDeclarationCSV(vatReport: Array<{ vatRate: number; taxableBase: number; vatTotal: number }>, period: string): string {
+  const lines = [
+    "periodo;taxa;base_tributavel;iva_liquidado",
+    ...vatReport.map((r) => `${period};${r.vatRate.toFixed(2)};${r.taxableBase.toFixed(2)};${r.vatTotal.toFixed(2)}`),
+    `total;—;${vatReport.reduce((s, r) => s + r.taxableBase, 0).toFixed(2)};${vatReport.reduce((s, r) => s + r.vatTotal, 0).toFixed(2)}`,
+  ];
+  return lines.join("\n");
+}

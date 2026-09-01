@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { ANGOLA_PROVINCES, formatDate, formatDateTime } from "@/lib/utils";
-import { Building2, FileText, Plus, Users, Shield, ShieldOff, Eye, Pencil, Trash2 } from "lucide-react";
+import { Building2, FileText, Plus, Users, Shield, ShieldOff, Eye, Pencil, Trash2, KeyRound, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +20,9 @@ function UserRow({ user, currentUserId, updateRole }: { user: any; currentUserId
   const [viewOpen, setViewOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [pwdOpen, setPwdOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const editForm = useForm({ defaultValues: { name: user.name ?? "", email: user.email ?? "" } });
 
@@ -30,6 +33,11 @@ function UserRow({ user, currentUserId, updateRole }: { user: any; currentUserId
 
   const deleteUser = trpc.users.delete.useMutation({
     onSuccess: () => { utils.users.list.invalidate(); setDeleteOpen(false); toast.success("Utilizador desactivado!"); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const resetPassword = trpc.users.resetPassword.useMutation({
+    onSuccess: () => { setPwdOpen(false); setNewPassword(""); setConfirmPassword(""); toast.success("Password redefinida com sucesso!"); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -68,6 +76,9 @@ function UserRow({ user, currentUserId, updateRole }: { user: any; currentUserId
             </Button>
             <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => { editForm.reset({ name: user.name ?? "", email: user.email ?? "" }); setEditOpen(true); }} title="Editar">
               <Pencil className="h-4 w-4" />
+            </Button>
+            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => { setNewPassword(""); setConfirmPassword(""); setPwdOpen(true); }} title="Redefinir password">
+              <KeyRound className="h-4 w-4" />
             </Button>
             {!isSelf && (
               <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive hover:text-destructive" onClick={() => setDeleteOpen(true)} title="Eliminar">
@@ -128,6 +139,49 @@ function UserRow({ user, currentUserId, updateRole }: { user: any; currentUserId
         </DialogContent>
       </Dialog>
 
+      {/* Redefinir Password */}
+      <Dialog open={pwdOpen} onOpenChange={setPwdOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Redefinir Password</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Definir uma nova password para <strong>{user.name ?? user.email}</strong>.
+              O utilizador deverá usar a nova password no próximo login.
+            </p>
+            <div className="space-y-1.5">
+              <Label>Nova Password *</Label>
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Mínimo 8 caracteres, 1 maiúscula, 1 número"
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Confirmar Password *</Label>
+              <Input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Repita a nova password"
+                autoComplete="new-password"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setPwdOpen(false)}>Cancelar</Button>
+              <Button
+                type="button"
+                disabled={resetPassword.isPending || newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[0-9]/.test(newPassword) || newPassword !== confirmPassword}
+                onClick={() => resetPassword.mutate({ id: user.id, password: newPassword })}
+              >
+                {resetPassword.isPending ? "A redefinir..." : "Redefinir Password"}
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Eliminar */}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
@@ -157,6 +211,9 @@ function UserRow({ user, currentUserId, updateRole }: { user: any; currentUserId
 
 export default function Settings() {
   const [seriesOpen, setSeriesOpen] = useState(false);
+  const [currentPwd, setCurrentPwd] = useState("");
+  const [newPwd, setNewPwd] = useState("");
+  const [confirmPwd, setConfirmPwd] = useState("");
   const utils = trpc.useUtils();
 
   const { data: company } = trpc.company.get.useQuery();
@@ -182,6 +239,12 @@ export default function Settings() {
 
   const { user: currentUser } = useAuth();
   const isAdmin = currentUser?.role === "admin";
+
+  const changePassword = trpc.auth.changePassword.useMutation({
+    onSuccess: () => { setCurrentPwd(""); setNewPwd(""); setConfirmPwd(""); toast.success("Password alterada com sucesso!"); },
+    onError: (e) => toast.error(e.message),
+  });
+
   const { data: usersData } = trpc.users.list.useQuery({ page: 1, limit: 50 }, { enabled: isAdmin });
   const updateRole = trpc.users.updateRole.useMutation({
     onSuccess: () => { utils.users.list.invalidate(); toast.success("Permissão actualizada!"); },
@@ -198,6 +261,7 @@ export default function Settings() {
       <Tabs defaultValue="company">
         <TabsList className="mb-4">
           <TabsTrigger value="company" className="gap-2"><Building2 className="h-4 w-4" />Empresa</TabsTrigger>
+          <TabsTrigger value="password" className="gap-2"><Lock className="h-4 w-4" />Password</TabsTrigger>
           <TabsTrigger value="series" className="gap-2"><FileText className="h-4 w-4" />Séries de Facturação</TabsTrigger>
           {isAdmin && <TabsTrigger value="users" className="gap-2"><Users className="h-4 w-4" />Utilizadores</TabsTrigger>}
         </TabsList>
@@ -260,6 +324,68 @@ export default function Settings() {
                 </Button>
               </div>
             </form>
+          </div>
+        </TabsContent>
+
+        {/* Password */}
+        <TabsContent value="password">
+          <div className="card-elevated p-6 max-w-lg">
+            <h2 className="text-sm font-semibold text-foreground mb-1">Alterar Password</h2>
+            <p className="text-xs text-muted-foreground mb-5">
+              A nova password deve ter pelo menos 8 caracteres, incluindo uma maiúscula e um número.
+            </p>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Password Actual *</Label>
+                <Input
+                  type="password"
+                  value={currentPwd}
+                  onChange={(e) => setCurrentPwd(e.target.value)}
+                  placeholder="Introduza a password actual"
+                  autoComplete="current-password"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Nova Password *</Label>
+                <Input
+                  type="password"
+                  value={newPwd}
+                  onChange={(e) => setNewPwd(e.target.value)}
+                  placeholder="Mínimo 8 caracteres, 1 maiúscula, 1 número"
+                  autoComplete="new-password"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Confirmar Nova Password *</Label>
+                <Input
+                  type="password"
+                  value={confirmPwd}
+                  onChange={(e) => setConfirmPwd(e.target.value)}
+                  placeholder="Repita a nova password"
+                  autoComplete="new-password"
+                />
+              </div>
+              {newPwd && confirmPwd && newPwd !== confirmPwd && (
+                <p className="text-xs text-destructive">As passwords não coincidem.</p>
+              )}
+              <div className="flex justify-end">
+                <Button
+                  disabled={
+                    changePassword.isPending ||
+                    !currentPwd ||
+                    !newPwd ||
+                    !confirmPwd ||
+                    newPwd !== confirmPwd ||
+                    newPwd.length < 8 ||
+                    !/[A-Z]/.test(newPwd) ||
+                    !/[0-9]/.test(newPwd)
+                  }
+                  onClick={() => changePassword.mutate({ currentPassword: currentPwd, newPassword: newPwd })}
+                >
+                  {changePassword.isPending ? "A alterar..." : "Alterar Password"}
+                </Button>
+              </div>
+            </div>
           </div>
         </TabsContent>
 

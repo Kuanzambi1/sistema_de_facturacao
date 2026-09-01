@@ -28,7 +28,7 @@ import {
 import { trpc } from "@/lib/trpc";
 
 const navItems = [
-  { href: "/", icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/documentos", icon: FileText, label: "Documentos Fiscais" },
   { href: "/clientes", icon: Users, label: "Clientes" },
   { href: "/fornecedores", icon: Truck, label: "Fornecedores" },
@@ -43,7 +43,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const logoutMutation = trpc.auth.logout.useMutation({
-    onSuccess: () => { logout(); window.location.href = "/"; },
+    onSuccess: () => { logout(); window.location.href = "/login"; },
   });
 
   const initials = user?.name
@@ -84,7 +84,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Navigation */}
         <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
           {navItems.map((item) => {
-            const isActive = item.href === "/" ? location === "/" : location.startsWith(item.href);
+            const isActive = item.href === "/dashboard" ? location === "/dashboard" : location.startsWith(item.href);
             return (
               <Link key={item.href} href={item.href}>
                 <a

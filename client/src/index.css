@@ -12,39 +12,41 @@
   --radius-xl: 1rem;
   --radius: 0.5rem;
 
-  /* Cores base — Azul Marinho Institucional + Dourado Angolano */
-  --color-background: oklch(0.98 0.003 240);
-  --color-foreground: oklch(0.15 0.02 240);
+  /* Cores base — Verde Institucional + Laranja Angolano */
+  --color-background: oklch(0.98 0.003 160);
+  --color-foreground: oklch(0.15 0.02 160);
   --color-card: oklch(1 0 0);
-  --color-card-foreground: oklch(0.15 0.02 240);
+  --color-card-foreground: oklch(0.15 0.02 160);
   --color-popover: oklch(1 0 0);
-  --color-popover-foreground: oklch(0.15 0.02 240);
-  --color-primary: oklch(0.32 0.08 240);
-  --color-primary-foreground: oklch(0.98 0.003 240);
-  --color-secondary: oklch(0.95 0.008 240);
-  --color-secondary-foreground: oklch(0.32 0.08 240);
-  --color-muted: oklch(0.96 0.005 240);
-  --color-muted-foreground: oklch(0.52 0.015 240);
-  --color-accent: oklch(0.95 0.008 240);
-  --color-accent-foreground: oklch(0.32 0.08 240);
+  --color-popover-foreground: oklch(0.15 0.02 160);
+  --color-primary: oklch(0.32 0.06 160);
+  --color-primary-foreground: oklch(0.98 0.003 160);
+  --color-secondary: oklch(0.95 0.008 160);
+  --color-secondary-foreground: oklch(0.32 0.06 160);
+  --color-muted: oklch(0.96 0.005 160);
+  --color-muted-foreground: oklch(0.52 0.015 160);
+  --color-accent: oklch(0.95 0.008 160);
+  --color-accent-foreground: oklch(0.32 0.06 160);
   --color-destructive: oklch(0.55 0.18 25);
   --color-destructive-foreground: oklch(0.98 0 0);
-  --color-border: oklch(0.91 0.007 240);
-  --color-input: oklch(0.91 0.007 240);
-  --color-ring: oklch(0.32 0.08 240);
-  --color-chart-1: oklch(0.32 0.08 240);
-  --color-chart-2: oklch(0.72 0.12 75);
+  --color-border: oklch(0.91 0.007 160);
+  --color-input: oklch(0.91 0.007 160);
+  --color-ring: oklch(0.32 0.06 160);
+  --color-brand: oklch(0.65 0.19 55);
+  --color-brand-foreground: oklch(0.98 0 0);
+  --color-chart-1: oklch(0.32 0.06 160);
+  --color-chart-2: oklch(0.65 0.19 55);
   --color-chart-3: oklch(0.55 0.15 160);
   --color-chart-4: oklch(0.65 0.14 30);
   --color-chart-5: oklch(0.58 0.16 300);
   --color-sidebar-background: oklch(1 0 0);
-  --color-sidebar-foreground: oklch(0.15 0.02 240);
-  --color-sidebar-primary: oklch(0.32 0.08 240);
+  --color-sidebar-foreground: oklch(0.15 0.02 160);
+  --color-sidebar-primary: oklch(0.32 0.06 160);
   --color-sidebar-primary-foreground: oklch(0.98 0 0);
-  --color-sidebar-accent: oklch(0.96 0.006 240);
-  --color-sidebar-accent-foreground: oklch(0.32 0.08 240);
-  --color-sidebar-border: oklch(0.91 0.007 240);
-  --color-sidebar-ring: oklch(0.32 0.08 240);
+  --color-sidebar-accent: oklch(0.96 0.006 160);
+  --color-sidebar-accent-foreground: oklch(0.32 0.06 160);
+  --color-sidebar-border: oklch(0.91 0.007 160);
+  --color-sidebar-ring: oklch(0.32 0.06 160);
   --font-sans: "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
 }
@@ -72,7 +74,7 @@
   /* Cards elegantes */
   .card-elevated {
     @apply bg-card rounded-xl border border-border;
-    box-shadow: 0 1px 3px oklch(0.15 0.02 240 / 0.06), 0 1px 2px oklch(0.15 0.02 240 / 0.04);
+    box-shadow: 0 1px 3px oklch(0.15 0.02 160 / 0.06), 0 1px 2px oklch(0.15 0.02 160 / 0.04);
   }
 
   /* Tabelas elegantes */
@@ -104,6 +106,8 @@
   .badge-parcialmente_paga { @apply bg-amber-50 text-amber-700; }
   .badge-anulada { @apply bg-red-50 text-red-600; }
   .badge-vencida { @apply bg-orange-50 text-orange-700; }
+  .badge-convertida { @apply bg-violet-50 text-violet-700; }
+  .badge-expirada { @apply bg-slate-200 text-slate-600; }
 
   /* Brand colours */
   .bg-brand-light { @apply bg-primary/5; }

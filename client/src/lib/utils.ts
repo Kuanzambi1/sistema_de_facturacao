@@ -14,6 +14,15 @@ export function formatCurrency(amount: number | string, currency = "AOA"): strin
   }).format(n) + " " + currency;
 }
 
+export function formatKz(amount: number | string): string {
+  const n = typeof amount === "string" ? parseFloat(amount) : amount;
+  if (isNaN(n)) return "0,00 Kz";
+  return new Intl.NumberFormat("pt-AO", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n) + " Kz";
+}
+
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return "—";
   const d = new Date(date);
@@ -35,6 +44,7 @@ export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   ND: "Nota de Débito",
   RC: "Recibo",
   RG: "Recibo Global",
+  OR: "Orçamento",
 };
 
 export const STATUS_LABELS: Record<string, string> = {
@@ -44,6 +54,8 @@ export const STATUS_LABELS: Record<string, string> = {
   parcialmente_paga: "Parcialmente Paga",
   anulada: "Anulada",
   vencida: "Vencida",
+  convertida: "Convertida",
+  expirada: "Expirada",
 };
 
 export const STATUS_COLORS: Record<string, string> = {
@@ -53,6 +65,17 @@ export const STATUS_COLORS: Record<string, string> = {
   parcialmente_paga: "badge-parcialmente_paga",
   anulada: "badge-anulada",
   vencida: "badge-vencida",
+  convertida: "badge-convertida",
+  expirada: "badge-expirada",
+};
+
+export const FREQUENCY_LABELS: Record<string, string> = {
+  semanal: "Semanal",
+  mensal: "Mensal",
+  bimestral: "Bimestral",
+  trimestral: "Trimestral",
+  semestral: "Semestral",
+  anual: "Anual",
 };
 
 export const ANGOLA_PROVINCES = [

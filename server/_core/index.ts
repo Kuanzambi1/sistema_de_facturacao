@@ -1,5 +1,7 @@
 import "dotenv/config";
 import express from "express";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -31,6 +33,34 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+
+  // Security headers
+  app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  }));
+
+  // Rate limiting — 100 requests per minute per IP
+  const limiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Demasiados pedidos. Tente novamente mais tarde." },
+  });
+  app.use("/api", limiter);
+
+  // Stricter rate limit for auth endpoints — 10 per minute per IP
+  const authLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Demasiadas tentativas de login. Aguarde um momento." },
+  });
+  app.use("/api/trpc/auth.login", authLimiter);
+  app.use("/api/trpc/auth.register", authLimiter);
+
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));

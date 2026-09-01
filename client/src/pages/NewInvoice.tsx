@@ -1,4 +1,4 @@
-oimport { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { formatCurrency, DOCUMENT_TYPE_LABELS, PAYMENT_METHODS, VAT_RATES } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -27,6 +27,7 @@ export default function NewInvoice() {
   const [documentType, setDocumentType] = useState("FT");
   const [seriesId, setSeriesId] = useState<number | undefined>();
   const [clientId, setClientId] = useState<number | undefined>();
+  const [clientRef, setClientRef] = useState("");
   const [issueDate, setIssueDate] = useState(new Date().toISOString().substring(0, 10));
   const [dueDate, setDueDate] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("transferencia");
@@ -115,6 +116,7 @@ export default function NewInvoice() {
       documentType: documentType as any,
       seriesId,
       clientId,
+      clientRef: clientRef || undefined,
       issueDate: new Date(issueDate),
       dueDate: dueDate ? new Date(dueDate) : undefined,
       paymentMethod: paymentMethod as any,
@@ -156,8 +158,8 @@ export default function NewInvoice() {
         {/* Cabeçalho do documento */}
         <div className="card-elevated p-5">
           <h2 className="text-sm font-semibold text-foreground mb-4">Dados do Documento</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="space-y-1.5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-4">
+            <div className="space-y-1.5 min-w-0">
               <Label>Tipo de Documento *</Label>
               <Select value={documentType} onValueChange={setDocumentType}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -168,10 +170,10 @@ export default function NewInvoice() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 min-w-0">
               <Label>Série *</Label>
               <Select key={seriesId || 'empty'} value={seriesId ? String(seriesId) : undefined} onValueChange={v => setSeriesId(Number(v))}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar série..." /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Seleccionar série..." /></SelectTrigger>
                 <SelectContent>
                   {series?.filter(s => s.isActive).map(s => (
                     <SelectItem key={s.id} value={String(s.id)}>{s.code} — {s.name}</SelectItem>
@@ -182,11 +184,11 @@ export default function NewInvoice() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 min-w-0">
               <Label>Data de Emissão *</Label>
               <Input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)} required />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 min-w-0">
               <Label>Data de Vencimento</Label>
               <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} min={issueDate} />
             </div>
@@ -220,6 +222,13 @@ export default function NewInvoice() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-4">
+            <div className="col-span-2 space-y-1.5">
+              <Label>V/ Referência (do cliente, opcional)</Label>
+              <Input type="text" value={clientRef} onChange={e => setClientRef(e.target.value)} placeholder="Ex: CONTABILIDADE2026" />
+              <p className="text-xs text-muted-foreground mt-1">Referência interna do cliente que aparecerá na factura.</p>
             </div>
           </div>
         </div>
