@@ -1,0 +1,44 @@
+[
+    {
+        "type": "IVA",
+        "country": "AO",
+        "variants": [
+            {
+                "code": "ISE",
+                "description": "ISENTO",
+                "percentage": 0
+            },
+            {
+                "code": "NOR",
+                "percentage": 14,
+                "description": "IVA 14%"
+            },
+            {
+                "code": "OUT",
+                "percentage": 7,
+                "description": "IVA 7%"
+            },
+            {
+                "code": "OUT",
+                "percentage": 5,
+                "description": "IVA 5%"
+            },
+            {
+                "code": "OUT",
+                "percentage": 1,
+                "description": "IVA 1%"
+            }
+        ]
+    },
+    {
+        "type": "NS",
+        "country": "AO",
+        "variants": [
+            {
+                "code": "NS",
+                "description": "Não sujeito a imposto",
+                "percentage": 0
+            }
+        ]
+    }
+]

@@ -1,0 +1,704 @@
+[
+    {
+        "classification": "2202.10.00",
+        "name": "Águas, incluídas as águas minerais e as águas gaseificadas, adicionadas de açúcar ou de outros edulcorantes ou aromatizadas",
+        "unit": "LITRO (Lt)",
+        "percentage": 3
+    },
+    {
+        "classification": "2202.91.00",
+        "name": "Cerveja sem álcool",
+        "unit": "LITRO (Lt)",
+        "percentage": 4
+    },
+    {
+        "classification": "2202.99.00",
+        "name": "Outras",
+        "unit": "LITRO (Lt)",
+        "percentage": 4
+    },
+    {
+        "classification": "2203.00.00",
+        "name": "Cerveja de malte",
+        "unit": "LITRO (Lt)",
+        "percentage": 4
+    },
+    {
+        "classification": "2204.10.10",
+        "name": "Champanhe",
+        "unit": "LITRO (Lt)",
+        "percentage": 8
+    },
+    {
+        "classification": "2204.10.90",
+        "name": "Outros",
+        "unit": "LITRO (Lt)",
+        "percentage": 8
+    },
+    {
+        "classification": "2204.21.00",
+        "name": "Em recipientes de capacidade não superior a 2L",
+        "unit": "LITRO (Lt)",
+        "percentage": 8
+    },
+    {
+        "classification": "2204.22.00",
+        "name": "Em recipientes de capacidade superior a 2 l, mas não superior a 10 l",
+        "unit": "LITRO (Lt)",
+        "percentage": 8
+    },
+    {
+        "classification": "2204.29.00",
+        "name": "Outros",
+        "unit": "LITRO (Lt)",
+        "percentage": 8
+    },
+    {
+        "classification": "2205.10.00",
+        "name": "Em recipientes de capacidade não superior a 2L",
+        "unit": "LITRO (Lt)",
+        "percentage": 8
+    },
+    {
+        "classification": "2205.90.00",
+        "name": "Outros",
+        "unit": "LITRO (Lt)",
+        "percentage": 8
+    },
+    {
+        "classification": "2206.00.00",
+        "name": "Outras bebidas fermentadas (por exemplo, sidra, perada, hidromel); mistura de bebidas fermentadas e misturas de bebidas fermentadas com bebidas não alcoólicas, não especificadas nem compreendidas noutras posições.",
+        "unit": "LITRO (Lt)",
+        "percentage": 8
+    },
+    {
+        "classification": "2207.10.00",
+        "name": "Álcool etílico não desnaturado, com um teor alcoólico, em volume, igual ou superior a 80% vol.",
+        "unit": "LITRO (Lt)",
+        "percentage": 15
+    },
+    {
+        "classification": "2207.20.10",
+        "name": "Álcool etílico",
+        "unit": "LITRO (Lt)",
+        "percentage": 15
+    },
+    {
+        "classification": "2207.20.19",
+        "name": "Outros",
+        "unit": "LITRO (Lt)",
+        "percentage": 15
+    },
+    {
+        "classification": "2208.20.00",
+        "name": "Aguardentes de vinho ou de bagaço de uvas",
+        "unit": "LITRO (Lt)",
+        "percentage": 8
+    },
+    {
+        "classification": "2208.30.00",
+        "name": "Uísques",
+        "unit": "LITRO (Lt)",
+        "percentage": 8
+    },
+    {
+        "classification": "2208.40.00",
+        "name": "Rum e outras aguardentes provenientes da destilação, após fermentação, de produtos da cana-de-açúcar",
+        "unit": "LITRO (Lt)",
+        "percentage": 8
+    },
+    {
+        "classification": "2208.50.00",
+        "name": "Gin e genebra",
+        "unit": "LITRO (Lt)",
+        "percentage": 8
+    },
+    {
+        "classification": "2208.60.00",
+        "name": "Vodca",
+        "unit": "LITRO (Lt)",
+        "percentage": 8
+    },
+    {
+        "classification": "2208.70.00",
+        "name": "Licores",
+        "unit": "LITRO (Lt)",
+        "percentage": 8
+    },
+    {
+        "classification": "2208.90.00",
+        "name": "Outros",
+        "unit": "LITRO (Lt)",
+        "percentage": 8
+    },
+    {
+        "classification": "2401.10.00",
+        "name": "Tabaco não destalado",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 25
+    },
+    {
+        "classification": "2401.20.00",
+        "name": "Tabaco total ou parcialmente destalado",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 25
+    },
+    {
+        "classification": "2401.30.00",
+        "name": "Desperdícios de tabaco",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 25
+    },
+    {
+        "classification": "2402.10.00",
+        "name": "Charutos e cigarrilhas, que contenham tabaco",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 25
+    },
+    {
+        "classification": "2402.20.00",
+        "name": "Cigarros que contenham tabaco",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 25
+    },
+    {
+        "classification": "2402.90.00",
+        "name": "Outros",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 25
+    },
+    {
+        "classification": "2403.11.00",
+        "name": "Tabaco para cachimbo de água (narguilé) mencionado na Nota 1 de subposição do presente Capítulo",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 25
+    },
+    {
+        "classification": "2403.19.00",
+        "name": "Outros",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 25
+    },
+    {
+        "classification": "2403.91.00",
+        "name": "Tabaco \"homogeneizado\" ou \"reconstituído\"",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 25
+    },
+    {
+        "classification": "2403.99.00",
+        "name": "Outros",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 25
+    },
+    {
+        "classification": "3604.10.00",
+        "name": "Fogo de Artificio",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 19
+    },
+    {
+        "classification": "3923.21.10",
+        "name": "Sacos de quaisquer dimensões destinados exclusivamente para embalar produtos, excepto os de transporte.",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 2
+    },
+    {
+        "classification": "3923.21.90",
+        "name": "Outros",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 19
+    },
+    {
+        "classification": "3923.29.10",
+        "name": "Sacos de quaisquer dimensões destinados exclusivamente para embalar produtos, excepto os de transporte.",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 2
+    },
+    {
+        "classification": "3923.29.90",
+        "name": "Outros",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 19
+    },
+    {
+        "classification": "3926.90.90",
+        "name": "Outras (palhinhas de plástico).",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 19
+    },
+    {
+        "classification": "4012.11.00",
+        "name": "Do tipo utilizado em automóveis de passageiros (incluindo os veículos de uso misto (stations wagons) e os automóveis de corrida)",
+        "unit": "UNIDADE/QUANTIDADE (U ou Qtd)",
+        "percentage": 19
+    },
+    {
+        "classification": "4012.12.00",
+        "name": "Do tipo utilizado em autocarros ou camiões",
+        "unit": "UNIDADE/QUANTIDADE (U ou Qtd)",
+        "percentage": 19
+    },
+    {
+        "classification": "4012.13.00",
+        "name": "Do tipo utilizado em veículos aéreos",
+        "unit": "UNIDADE/QUANTIDADE (U ou Qtd)",
+        "percentage": 19
+    },
+    {
+        "classification": "4012.19.00",
+        "name": "Outros",
+        "unit": "UNIDADE/QUANTIDADE (U ou Qtd)",
+        "percentage": 19
+    },
+    {
+        "classification": "4012.20.00",
+        "name": "Pneumáticos usados",
+        "unit": "UNIDADE/QUANTIDADE (U ou Qtd)",
+        "percentage": 19
+    },
+    {
+        "classification": "4012.90.00",
+        "name": "Outros",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 19
+    },
+    {
+        "classification": "7113.11.00",
+        "name": "De prata, mesmo revestida, folheada ou chapeada, de outros metais preciosos",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 15
+    },
+    {
+        "classification": "7113.19.00",
+        "name": "De outros metais preciosos, mesmo revestidos, folheados ou chapeados, de metais preciosos",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 15
+    },
+    {
+        "classification": "7113.20.00",
+        "name": "De metais comuns, folheados ou chapeados de metais preciosos",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 15
+    },
+    {
+        "classification": "7114.11.00",
+        "name": "De prata, mesmo revestida, folheada ou chapeada de outros metais preciosos",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 15
+    },
+    {
+        "classification": "7114.19.00",
+        "name": "De outros metais preciosos, mesmo revestidos, folheados ou chapeados, de metais preciosos",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 15
+    },
+    {
+        "classification": "7114.20.00",
+        "name": "De metais comuns, folheados ou chapeados de metais preciosos",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 15
+    },
+    {
+        "classification": "8703.24.49",
+        "name": "Outros – Novos",
+        "unit": "UNIDADE/QUANTIDADE (U ou Qtd)",
+        "percentage": 5
+    },
+    {
+        "classification": "8703.24.59",
+        "name": "Outros – Usados",
+        "unit": "UNIDADE/QUANTIDADE (U ou Qtd)",
+        "percentage": 5
+    },
+    {
+        "classification": "8703.33.59",
+        "name": "Outros Novos",
+        "unit": "UNIDADE/QUANTIDADE (U ou Qtd)",
+        "percentage": 5
+    },
+    {
+        "classification": "8703.33.69",
+        "name": "Outros Usados",
+        "unit": "UNIDADE/QUANTIDADE (U ou Qtd)",
+        "percentage": 5
+    },
+    {
+        "classification": "8704.21.10",
+        "name": "Do tipo Pickup e Furgão, de cilindrada não superior a 5000 cm3 – Novos",
+        "unit": "UNIDADE/QUANTIDADE (U ou Qtd)",
+        "percentage": 5
+    },
+    {
+        "classification": "8704.21.11",
+        "name": "Do tipo Pickup e Furgão, de cilindrada superior a 5000 cm3 – Novos",
+        "unit": "UNIDADE/QUANTIDADE (U ou Qtd)",
+        "percentage": 5
+    },
+    {
+        "classification": "8704.21.15",
+        "name": "Do tipo Pickup e Furgão, de cilindrada não superior a 5000 cm3 – Usados",
+        "unit": "UNIDADE/QUANTIDADE (U ou Qtd)",
+        "percentage": 5
+    },
+    {
+        "classification": "8704.21.16",
+        "name": "Do tipo Pickup e Furgão, de cilindrada superior a 5000 cm3 – Usados",
+        "unit": "UNIDADE/QUANTIDADE (U ou Qtd)",
+        "percentage": 5
+    },
+    {
+        "classification": "8801.00.00",
+        "name": "Balões e dirigíveis; planadores, asas voadoras e outros veículos aéreos, não concebidos para propulsão a motor",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 20
+    },
+    {
+        "classification": "8802.11.00",
+        "name": "De peso não superior a 2.000 kg, sem carga (vazios)",
+        "unit": "UNIDADE (U)",
+        "percentage": 20
+    },
+    {
+        "classification": "8802.20.00",
+        "name": "Aviões e outros veículos aéreos, de peso não superior a 2.000 kg, sem carga (vazios)",
+        "unit": "UNIDADE (U)",
+        "percentage": 20
+    },
+    {
+        "classification": "8903.91.00",
+        "name": "Barcos à vela, mesmo com motor auxiliar",
+        "unit": "UNIDADE/QUANTIDADE (U ou Qtd)",
+        "percentage": 20
+    },
+    {
+        "classification": "8903.92.00",
+        "name": "Barcos a motor, excepto com motor fora-de-borda",
+        "unit": "UNIDADE/QUANTIDADE (U ou Qtd)",
+        "percentage": 20
+    },
+    {
+        "classification": "8903.99.90",
+        "name": "Outros",
+        "unit": "UNIDADE/QUANTIDADE (U ou Qtd)",
+        "percentage": 20
+    },
+    {
+        "classification": "9303.20.00",
+        "name": "Outras espingardas e carabinas de caça ou de tiro ao alvo, com pelo menos um cano liso",
+        "unit": "UNIDADE/QUANTIDADE (U ou Qtd)",
+        "percentage": 50
+    },
+    {
+        "classification": "9303.30.00",
+        "name": "Outras espingardas e carabinas de caça ou de tiro ao alvo",
+        "unit": "UNIDADE/QUANTIDADE (U ou Qtd)",
+        "percentage": 50
+    },
+    {
+        "classification": "9701.10.00",
+        "name": "Quadros, pinturas e desenhos",
+        "unit": "UNIDADE (U)",
+        "percentage": 5
+    },
+    {
+        "classification": "9701.90.00",
+        "name": "Outros",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 5
+    },
+    {
+        "classification": "9702.00.00",
+        "name": "Gravuras, estampas e litografias, originais",
+        "unit": "UNIDADE (U)",
+        "percentage": 5
+    },
+    {
+        "classification": "9703.00.00",
+        "name": "Produções originais de arte estatuaria ou de escultura, de quaisquer matérias",
+        "unit": "UNIDADE (U)",
+        "percentage": 5
+    },
+    {
+        "classification": "9704.00.00",
+        "name": "Selos postais, selos fiscais, marcas postais, envelope de primeiro dia (First Day Covers), inteiros postais e semelhantes, obliterados ou não obliterados, excepto os artigos da posição 49.07",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 5
+    },
+    {
+        "classification": "9705.00.00",
+        "name": "Colecções e espécimes para colecções, de zoologia, botânica, mineralogia, anatomia, ou apresentando interesse histórico, arqueológico, paleontológico, etnográfico ou numismático",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 5
+    },
+    {
+        "classification": "9706.00.00",
+        "name": "Antiguidades com mais de 100 anos",
+        "unit": "KILOGRAMA (Kg)",
+        "percentage": 5
+    },
+    {
+        "classification": "2701.11.00",
+        "name": "Antracite",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2701.12.00",
+        "name": "Hulha betuminosa",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2701.19.00",
+        "name": "Outras hulhas",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2701.20.00",
+        "name": "Briquetes, bolas em aglomerados e combustíveis sólidos semelhantes, obtidos a partir da hulha",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2702.10.00",
+        "name": "Linhites, mesmo em pó, mas não aglomeradas",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2702.20.00",
+        "name": "Linhites aglomeradas",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2704.00.00",
+        "name": "Coques e semicoques, de hulha, de linhite ou de turfa, mesmo aglomerados; carvão de retorta",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2705.00.00",
+        "name": "Gás de hulha, gás de água, gás pobre (gás de ar) e gases semelhantes, excepto gases de petróleo e outros hidrocarbonetos gasosos",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2706.00.00",
+        "name": "Alcatrões de hulha, de linhite ou de turfa e outros alcatrões minerais, mesmo desidratados ou parcialmente destilados, incluindo os alcatrões reconstituídos.",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2707.10.00",
+        "name": "Benzol (benzeno)",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2707.20.00",
+        "name": "Toluol (tolueno)",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2707.30.00",
+        "name": "Xilol (xilenos)",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2707.40.00",
+        "name": "Naftaleno",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2707.50.00",
+        "name": "Outras misturas de hidrocarbonetos aromáticos que destilem (incluindo as perdas) uma fração igual ou superior a 65 %, em volume, a 250ºC, segundo o metodo ISO 3405 (equivalente ao método ASTM D 86",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2707.91.00",
+        "name": "Óleos de creosoto",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2707.99.00",
+        "name": "Outros",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2708.10.00",
+        "name": "Breu",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2708.20.00",
+        "name": "Coque de breu",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2710.12.11",
+        "name": "Gasolina para aviões",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2710.12.12",
+        "name": "Outras Gasolinas",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 5
+    },
+    {
+        "classification": "2710.12.13",
+        "name": "Querosene",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 0
+    },
+    {
+        "classification": "2710.12.14",
+        "name": "Gasóleo",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 5
+    },
+    {
+        "classification": "2710.12.15",
+        "name": "Outros",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2710.19.21",
+        "name": "Óleo base",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2710.19.23",
+        "name": "Óleos lubrificantes",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2710.19.29",
+        "name": "Outros",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2710.20.00",
+        "name": "Óleos de petróleo ou de minerais betuminosos (excepto óleos brutos) e preparações não especificadas nem compreendidas noutras posições, que contenham, como constituintes básicos, 70 % ou mais, em peso, de óleos de petróleo ou de minerais betuminosos; que contenham 1 biodiesel, excepto os resíduos de óleos",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2710.91.00",
+        "name": "Que contenham difenilos policlorados (PCB), terfenilos policlorados (PCT) ou difenilos polibromados (PBB)",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2710.99.00",
+        "name": "Outros",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2711.12.00",
+        "name": "Propano",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2711.13.00",
+        "name": "Butano",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2711.14.00",
+        "name": "Etileno, propileno, butileno e butadieno",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2711.19.00",
+        "name": "Outros",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2712.10.00",
+        "name": "Vaselina",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2712.20.00",
+        "name": "Parafina que contenha, em peso, menos de 0,75 % de óleo",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2712.90.00",
+        "name": "Outros",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2713.11.00",
+        "name": "Não calcinado",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2713.12.00",
+        "name": "Calcinado",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2713.20.00",
+        "name": "Betume de petróleo",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2713.90.00",
+        "name": "Outros resíduos dos óleos de petróleo ou de minerais betuminosos",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2714.10.00",
+        "name": "Xistos e areias betuminosos",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2714.90.10",
+        "name": "Aditivos de xistos e areias betuminosos",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2714.90.90",
+        "name": "Outros",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 2
+    },
+    {
+        "classification": "2715.00.00",
+        "name": "Misturas betuminosas à base de asfalto ou de betume naturais, de betume de petróleo, de alcatrão mineral ou de breu de alcatrão mineral (por exemplo, mástiques betuminosas e cut-backs)",
+        "unit": "TONELADAS MÉTRICAS (TM)",
+        "percentage": 0
+    }
+]
