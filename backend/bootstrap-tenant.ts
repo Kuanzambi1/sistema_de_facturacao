@@ -54,6 +54,22 @@ async function main() {
     console.log(`Backfill ${table}: ${affected} linha(s)`);
   }
 
+  const [exemptions] = await conn.query("SELECT COUNT(*) AS c FROM vat_exemption_reasons WHERE tenantId = ?", [tenantId]);
+  if (((exemptions as any)[0]?.c ?? 0) === 0) {
+    const reasons = [
+      { code: "M00", description: "Regime de IVA de Caixa (A VALIDAR COM AGT)", legalBasis: "Art. 32.º do RIVA" },
+      { code: "M01", description: "Isento Art. 12.º do CIVA (A VALIDAR COM AGT)", legalBasis: "Art. 12.º do CIVA" },
+      { code: "M02", description: "Isento Art. 13.º do CIVA (A VALIDAR COM AGT)", legalBasis: "Art. 13.º do CIVA" }
+    ];
+    for (const r of reasons) {
+      await conn.query(
+        "INSERT INTO vat_exemption_reasons (tenantId, code, description, legalBasis) VALUES (?, ?, ?, ?)",
+        [tenantId, r.code, r.description, r.legalBasis]
+      );
+    }
+    console.log("Adicionados motivos de isenção por defeito.");
+  }
+
   await conn.end();
   console.log("Bootstrap concluído.");
 }

@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { Fragment, useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { formatCurrency, DOCUMENT_TYPE_LABELS, PAYMENT_METHODS, VAT_RATES } from "@/lib/utils";
+import { calculateLineValues, calculateInvoiceTotals } from "@shared/fiscal-math";
 import { cn } from "@/lib/utils";
 import { ArrowLeft, Plus, Trash2, Calculator, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ type LineItem = {
   unitPrice: number;
   vatRate: number;
   discount: number;
+  vatExemptReasonCode?: string;
 };
 
 export default function NewInvoice() {
@@ -28,18 +30,34 @@ export default function NewInvoice() {
   const [seriesId, setSeriesId] = useState<number | undefined>();
   const [clientId, setClientId] = useState<number | undefined>();
   const [clientRef, setClientRef] = useState("");
-  const [issueDate, setIssueDate] = useState(new Date().toISOString().substring(0, 10));
+  const [operationDate, setOperationDate] = useState(new Date().toISOString().substring(0, 10));
   const [dueDate, setDueDate] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("transferencia");
   const [notes, setNotes] = useState("");
   const [relatedInvoiceNumber, setRelatedInvoiceNumber] = useState("");
+  const [cancelReason, setCancelReason] = useState("");
+  const [rectificationType, setRectificationType] = useState<"anulacao_total" | "rectificacao_parcial">("anulacao_total");
   const [applyWithholdingTax, setApplyWithholdingTax] = useState(false);
   const [lines, setLines] = useState<LineItem[]>([{ description: "", quantity: 1, unitPrice: 0, vatRate: 14, discount: 0 }]);
+
+  const todayISO = new Date().toISOString().substring(0, 10);
 
   const { data: clients } = trpc.clients.list.useQuery({ limit: 500 });
   const { data: products } = trpc.products.list.useQuery({ limit: 500 });
   const { data: series } = trpc.series.list.useQuery({ documentType });
   const { data: company } = trpc.company.get.useQuery();
+  const { data: vatExemptions } = trpc.vatExemptions.list.useQuery();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const type = params.get("type");
+    const ref = params.get("ref");
+    const client = params.get("clientId");
+    
+    if (type && DOCUMENT_TYPE_LABELS[type]) setDocumentType(type);
+    if (ref) setRelatedInvoiceNumber(ref);
+    if (client) setClientId(Number(client));
+  }, []);
 
   // Auto-select first active series when type changes
   useEffect(() => {
@@ -91,37 +109,40 @@ export default function NewInvoice() {
   }
 
   // Calculations
-  const totals = lines.reduce((acc, line) => {
-    const gross = line.quantity * line.unitPrice;
-    const discountAmt = gross * (line.discount / 100);
-    const taxable = gross - discountAmt;
-    const vat = taxable * (line.vatRate / 100);
-    return {
-      subtotal: acc.subtotal + taxable,
-      vatTotal: acc.vatTotal + vat,
-      total: acc.total + taxable + vat,
-      serviceTotal: acc.serviceTotal + (line.type === "servico" ? taxable : 0),
-    };
-  }, { subtotal: 0, vatTotal: 0, total: 0, serviceTotal: 0 });
-
-  const withholdingTaxAmount = applyWithholdingTax ? totals.serviceTotal * 0.065 : 0;
-  totals.total -= withholdingTaxAmount;
+  const calculatedLines = lines.map((l) => calculateLineValues({
+    quantity: l.quantity,
+    unitPrice: l.unitPrice,
+    discountPercent: l.discount,
+    vatRate: l.vatRate,
+    isService: l.type === "servico"
+  }));
+  const totals = calculateInvoiceTotals(calculatedLines, applyWithholdingTax ? 6.5 : 0);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!seriesId) { toast.error("Seleccione uma série de facturação."); return; }
     if (lines.some(l => !l.description)) { toast.error("Preencha a descrição de todos os artigos."); return; }
 
+    // Validar motivo de isenção quando IVA é 0%
+    const missingExemption = lines.some(l => l.vatRate === 0 && !l.vatExemptReasonCode);
+    if (missingExemption) {
+      toast.error("Seleccione o Motivo Legal de Isenção de IVA para todas as linhas com IVA a 0%.");
+      return;
+    }
+
     createInvoice.mutate({
       documentType: documentType as any,
       seriesId,
       clientId,
       clientRef: clientRef || undefined,
-      issueDate: new Date(issueDate),
+      issueDate: new Date(),
+      operationDate: new Date(operationDate),
       dueDate: dueDate ? new Date(dueDate) : undefined,
       paymentMethod: paymentMethod as any,
       notes,
       relatedInvoiceNumber: ["NC", "ND", "RC", "RG"].includes(documentType) && relatedInvoiceNumber ? relatedInvoiceNumber : undefined,
+      cancelReason: documentType === "NC" ? cancelReason : undefined,
+      rectificationType: documentType === "NC" ? rectificationType : undefined,
       withholdingTaxPercent: applyWithholdingTax ? 6.5 : 0,
       items: lines.map(l => ({
         productId: l.productId,
@@ -130,8 +151,12 @@ export default function NewInvoice() {
         description: l.description,
         quantity: l.quantity,
         unitPrice: l.unitPrice,
-        vatRate: l.vatRate,
+        vatRate: documentType === "ND" ? 0 : l.vatRate,
         discountPercent: l.discount,
+        vatExemptReasonCode: documentType === "ND" ? "M99" : (l.vatRate === 0 ? l.vatExemptReasonCode : undefined),
+        vatExemptReason: documentType === "ND" ? "Não sujeito (Nota de Débito)" : (l.vatRate === 0 && l.vatExemptReasonCode
+          ? (vatExemptions || []).find(r => r.code === l.vatExemptReasonCode)?.description
+          : undefined),
       })),
     });
   }
@@ -185,20 +210,28 @@ export default function NewInvoice() {
               </Select>
             </div>
             <div className="space-y-1.5 min-w-0">
-              <Label>Data de Emissão *</Label>
-              <Input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)} required />
+              <Label>Data de Emissão</Label>
+              <Input type="date" value={todayISO} readOnly disabled className="bg-muted/50 cursor-not-allowed" />
+              <p className="text-xs text-muted-foreground">Gerada automaticamente pelo sistema.</p>
             </div>
             <div className="space-y-1.5 min-w-0">
-              <Label>Data de Vencimento</Label>
-              <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} min={issueDate} />
+              <Label>Data da Operação *</Label>
+              <Input type="date" value={operationDate} onChange={e => setOperationDate(e.target.value)} max={todayISO} required />
+              <p className="text-xs text-muted-foreground">Data em que os bens/serviços foram prestados.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-4 mt-4">
+            <div className="space-y-1.5 min-w-0">
+              <Label>{["OR", "PP", "FP", "CM"].includes(documentType) ? "Validade da Proposta" : "Data de Vencimento"}</Label>
+              <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} min={todayISO} />
             </div>
           </div>
           
-          {(documentType === "PP" || documentType === "FP" || documentType === "OR") && (
+          {(documentType === "PP" || documentType === "FP" || documentType === "OR" || documentType === "CM") && (
             <div className="mt-4 p-3 bg-blue-50/70 border border-blue-200 rounded-lg flex items-center gap-2.5 text-xs text-blue-900">
               <span className="text-base shrink-0">📄</span>
               <span>
-                <strong>Factura Proforma (PP):</strong> Este documento tem natureza orçamental/previsional e não possui valor fiscal imediato. Após a emissão, terá a opção de <strong>transformar esta proforma em Factura (FT) definitiva</strong> com um único clique.
+                <strong>{DOCUMENT_TYPE_LABELS[documentType]}:</strong> Este documento tem natureza orçamental/previsional e não possui valor fiscal imediato nem consome a numeração das facturas fiscais. Após a aceitação, terá a opção de <strong>transformá-lo em Factura (FT) definitiva</strong>.
               </span>
             </div>
           )}
@@ -206,10 +239,29 @@ export default function NewInvoice() {
           {["NC", "ND", "RC", "RG"].includes(documentType) && (
             <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="col-span-2 space-y-1.5">
-                <Label>Fatura Referente (Nº do Documento) *</Label>
+                <Label>Documento de Origem (Nº da Fatura) *</Label>
                 <Input type="text" value={relatedInvoiceNumber} onChange={e => setRelatedInvoiceNumber(e.target.value)} placeholder="Ex: FT 2026/1" required={["NC", "ND"].includes(documentType)} />
-                <p className="text-xs text-muted-foreground mt-1">Obrigatório por lei ao anular ou rectificar uma fatura.</p>
+                <p className="text-xs text-muted-foreground mt-1">Obrigatório por lei ao emitir Nota de Crédito/Débito.</p>
               </div>
+              
+              {documentType === "NC" && (
+                <>
+                  <div className="col-span-2 lg:col-span-2 space-y-1.5">
+                    <Label>Tipo de Rectificação *</Label>
+                    <Select value={rectificationType} onValueChange={(v: any) => setRectificationType(v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="anulacao_total">Anulação Total</SelectItem>
+                        <SelectItem value="rectificacao_parcial">Rectificação Parcial</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-2 lg:col-span-4 space-y-1.5">
+                    <Label>Motivo da Rectificação/Anulação *</Label>
+                    <Input type="text" value={cancelReason} onChange={e => setCancelReason(e.target.value)} placeholder="Descreva o motivo legal ou comercial para esta anulação..." required />
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -246,115 +298,138 @@ export default function NewInvoice() {
         <div className="card-elevated">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <h2 className="text-sm font-semibold text-foreground">Artigos / Serviços</h2>
-            <Button type="button" variant="outline" size="sm" onClick={addLine} className="gap-1.5">
-              <Plus className="h-3.5 w-3.5" />Adicionar Linha
-            </Button>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto pb-4">
+            <table className="w-full table-fixed min-w-[1400px]">
               <thead>
                 <tr className="border-b border-border bg-muted/30">
-                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-2.5 w-48">Produto</th>
+                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-2.5 w-64">Produto</th>
                   <th className="text-left text-xs font-semibold text-muted-foreground px-2 py-2.5">Descrição *</th>
-                  <th className="text-right text-xs font-semibold text-muted-foreground px-2 py-2.5 w-20">Qtd.</th>
-                  <th className="text-right text-xs font-semibold text-muted-foreground px-2 py-2.5 w-28">Preço Unit.</th>
+                  <th className="text-right text-xs font-semibold text-muted-foreground px-2 py-2.5 w-24">Qtd.</th>
+                  <th className="text-right text-xs font-semibold text-muted-foreground px-2 py-2.5 w-40">Preço Unit.</th>
                   <th className="text-right text-xs font-semibold text-muted-foreground px-2 py-2.5 w-20">Desc. %</th>
-                  <th className="text-center text-xs font-semibold text-muted-foreground px-2 py-2.5 w-24">IVA %</th>
-                  <th className="text-right text-xs font-semibold text-muted-foreground px-4 py-2.5 w-28">Total</th>
-                  <th className="w-8"></th>
+                  {documentType !== "ND" && <th className="text-center text-xs font-semibold text-muted-foreground px-2 py-2.5 w-24">IVA %</th>}
+                  {documentType !== "ND" && <th className="text-left text-xs font-semibold text-muted-foreground px-2 py-2.5 w-48">Motivo de Isenção</th>}
+                  <th className="text-right text-xs font-semibold text-muted-foreground px-4 py-2.5 w-56">Total</th>
+                  <th className="w-10"></th>
                 </tr>
               </thead>
               <tbody>
                 {lines.map((line, i) => {
-                  const gross = line.quantity * line.unitPrice;
-                  const discountAmt = gross * (line.discount / 100);
-                  const taxable = gross - discountAmt;
-                  const vat = taxable * (line.vatRate / 100);
-                  const lineTotal = taxable + vat;
+                  const lineResult = calculatedLines[i];
                   return (
-                    <tr key={i} className="border-b border-border/50 align-top">
-                      <td className="px-4 py-2">
-                        <Select value={line.productId ? String(line.productId) : ""} onValueChange={v => selectProduct(i, Number(v))}>
-                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                          <SelectContent>
-                            {products?.data.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.code} — {p.name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </td>
-                      <td className="px-2 py-2 align-top">
-                        <Textarea 
-                          className="min-h-[32px] text-xs py-1.5 resize-none leading-tight overflow-hidden" 
-                          rows={1}
-                          value={line.description} 
-                          onChange={e => {
-                            e.target.style.height = 'auto';
-                            e.target.style.height = `${e.target.scrollHeight}px`;
-                            updateLine(i, "description", e.target.value);
-                          }} 
-                          ref={el => {
-                            if (el) {
-                              el.style.height = 'auto';
-                              el.style.height = `${el.scrollHeight}px`;
-                            }
-                          }}
-                          placeholder="Descrição do artigo" 
-                          required 
-                        />
-                      </td>
-                      <td className="px-2 py-2">
-                        <Input className="h-8 text-xs text-right" type="number" step="0.001" min="0.001" value={line.quantity} onChange={e => updateLine(i, "quantity", Number(e.target.value))} onFocus={e => e.target.select()} />
-                      </td>
-                      <td className="px-2 py-2">
-                        <Input className="h-8 text-xs text-right" type="number" step="0.01" min="0" value={line.unitPrice} onChange={e => updateLine(i, "unitPrice", Number(e.target.value))} onFocus={e => e.target.select()} />
-                      </td>
-                      <td className="px-2 py-2">
-                        <Input className="h-8 text-xs text-right" type="number" step="0.01" min="0" max="100" value={line.discount} onChange={e => updateLine(i, "discount", Number(e.target.value))} onFocus={e => e.target.select()} />
-                      </td>
-                      <td className="px-2 py-2">
-                        <Select value={String(line.vatRate)} onValueChange={v => updateLine(i, "vatRate", Number(v))}>
-                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {VAT_RATES.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </td>
-                      <td className="px-4 py-2 text-right text-sm font-semibold whitespace-nowrap">
-                        {formatCurrency(lineTotal)}
-                      </td>
-                      <td className="pr-2">
-                        {lines.length > 1 && (
-                          <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => removeLine(i)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                    <Fragment key={i}>
+                      <tr className="border-b border-border/50 align-top">
+                        <td className="px-4 py-2">
+                          <Select value={line.productId ? String(line.productId) : ""} onValueChange={v => selectProduct(i, Number(v))}>
+                            <SelectTrigger className="h-8 text-xs w-full max-w-full overflow-hidden [&_span]:truncate [&_span]:block text-left">
+                              <SelectValue placeholder="Seleccionar..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {products?.data.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.code} — {p.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </td>
+                        <td className="px-2 py-2 align-top">
+                          <Textarea 
+                            className="min-h-[32px] w-full text-xs py-1.5 resize-none leading-tight overflow-hidden break-words whitespace-pre-wrap" 
+                            rows={1}
+                            value={line.description} 
+                            onChange={e => {
+                              e.target.style.height = 'auto';
+                              e.target.style.height = `${e.target.scrollHeight}px`;
+                              updateLine(i, "description", e.target.value);
+                            }} 
+                            ref={el => {
+                              if (el) {
+                                el.style.height = 'auto';
+                                el.style.height = `${el.scrollHeight}px`;
+                              }
+                            }}
+                            placeholder="Descrição do artigo" 
+                            required 
+                          />
+                        </td>
+                        <td className="px-2 py-2">
+                          <Input className="h-8 text-xs text-right w-full" type="number" step="0.001" min="0.001" value={line.quantity} onChange={e => updateLine(i, "quantity", Number(e.target.value))} onFocus={e => e.target.select()} />
+                        </td>
+                        <td className="px-2 py-2">
+                          <Input className="h-8 text-xs text-right w-full" type="number" step="0.01" min="0" value={line.unitPrice} onChange={e => updateLine(i, "unitPrice", Number(e.target.value))} onFocus={e => e.target.select()} />
+                        </td>
+                        <td className="px-2 py-2">
+                          <Input className="h-8 text-xs text-right w-full" type="number" step="0.01" min="0" max="100" value={line.discount} onChange={e => updateLine(i, "discount", Number(e.target.value))} onFocus={e => e.target.select()} />
+                        </td>
+                        {documentType !== "ND" && (
+                          <td className="px-2 py-2">
+                            <Select value={String(line.vatRate)} onValueChange={v => updateLine(i, "vatRate", Number(v))}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {VAT_RATES.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </td>
                         )}
-                      </td>
-                    </tr>
+                        {documentType !== "ND" && (
+                          <td className="px-2 py-2">
+                            <Select disabled={line.vatRate !== 0} value={line.vatRate === 0 ? (line.vatExemptReasonCode || "") : ""} onValueChange={v => updateLine(i, "vatExemptReasonCode", v)}>
+                              <SelectTrigger className={cn("h-8 text-xs", line.vatRate === 0 && !line.vatExemptReasonCode && "border-amber-400 bg-amber-50")}>
+                                <SelectValue placeholder={line.vatRate === 0 ? "Seleccione..." : "Não aplicável"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(vatExemptions || []).map(r => (
+                                  <SelectItem key={r.code} value={r.code}>
+                                    <span className="font-mono">{r.code}</span> - {r.description}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </td>
+                        )}
+                        <td className="px-4 py-2 text-right text-sm font-semibold whitespace-nowrap overflow-hidden text-ellipsis">
+                          {formatCurrency(lineResult.total)}
+                        </td>
+                        <td className="pr-2">
+                          {lines.length > 1 && (
+                            <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => removeLine(i)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    </Fragment>
                   );
                 })}
+                <tr className="border-t border-border/50">
+                  <td colSpan={9} className="px-4 py-3">
+                    <Button type="button" variant="outline" size="sm" onClick={addLine} className="gap-1.5">
+                      <Plus className="h-3.5 w-3.5" />Adicionar Linha
+                    </Button>
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
 
           {/* Totais */}
           <div className="flex justify-end px-5 py-4 border-t border-border">
-            <div className="w-64 space-y-2">
+            <div className="w-72 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Subtotal (s/IVA)</span>
                 <span className="font-medium">{formatCurrency(totals.subtotal)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">IVA</span>
-                <span className="font-medium">{formatCurrency(totals.vatTotal)}</span>
+                <span className="font-medium">{formatCurrency(totals.vatAmount)}</span>
               </div>
               {applyWithholdingTax && (
                 <div className="flex justify-between text-sm text-amber-700">
                   <span>Retenção na Fonte (6.5%)</span>
-                  <span className="font-medium">-{formatCurrency(withholdingTaxAmount)}</span>
+                  <span className="font-medium">-{formatCurrency(totals.withholdingTaxAmount)}</span>
                 </div>
               )}
               <div className="flex justify-between text-base font-semibold border-t border-border pt-2">
                 <span>Total</span>
-                <span className="text-primary">{formatCurrency(totals.total)}</span>
+                <span className="text-primary">{formatCurrency(totals.totalAmount)}</span>
               </div>
             </div>
           </div>

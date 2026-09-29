@@ -83,7 +83,7 @@ export async function listInvoicesByClientToken(portalToken: string) {
   return db
     .select()
     .from(invoices)
-    .where(and(eq(invoices.clientId, client.id), eq(invoices.tenantId, client.tenantId), sql`${invoices.status} NOT IN ('rascunho','anulada')`))
+    .where(and(eq(invoices.clientId, client.id), eq(invoices.tenantId, client.tenantId)))
     .orderBy(desc(invoices.issueDate));
 }
 

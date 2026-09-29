@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { Printer } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AdvancedReports } from "@/components/AdvancedReports";
 
 const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 const COLORS = ["#1e3a5f", "#2d5a8e", "#4a7fb5", "#7ba7d4", "#b0cfe8", "#d4e6f5"];
@@ -73,12 +75,17 @@ export default function Reports() {
       </div>
 
       <Tabs defaultValue="resumo" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5 overflow-x-auto h-auto py-1">
           <TabsTrigger value="resumo">Resumo</TabsTrigger>
           <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
           <TabsTrigger value="clientes">Clientes</TabsTrigger>
           <TabsTrigger value="fornecedores">Fornecedores</TabsTrigger>
+          <TabsTrigger value="avancado">Avançado</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="avancado" className="space-y-6">
+          <AdvancedReports />
+        </TabsContent>
 
         {/* ─── TAB: Resumo ─────────────────────────────────────────── */}
         <TabsContent value="resumo" className="space-y-6">
@@ -240,7 +247,14 @@ export default function Reports() {
         {/* ─── TAB: Clientes ───────────────────────────────────────── */}
         <TabsContent value="clientes" className="space-y-6">
           <div className="card-elevated p-5">
-            <h2 className="text-sm font-semibold text-foreground mb-4">Conta Corrente de Clientes</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-foreground">Conta Corrente de Clientes</h2>
+              {clientStatement && clientStatement.client && (
+                <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()}>
+                  <Printer className="h-4 w-4" /> Imprimir
+                </Button>
+              )}
+            </div>
             <div className="space-y-1 mb-4">
               <Label className="text-xs">Seleccionar Cliente</Label>
               <Select value={selectedClientId} onValueChange={setSelectedClientId}>
@@ -381,7 +395,14 @@ export default function Reports() {
         {/* ─── TAB: Fornecedores ───────────────────────────────────── */}
         <TabsContent value="fornecedores" className="space-y-6">
           <div className="card-elevated p-5">
-            <h2 className="text-sm font-semibold text-foreground mb-4">Conta Corrente de Fornecedores</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-foreground">Conta Corrente de Fornecedores</h2>
+              {supplierStatement && supplierStatement.supplier && (
+                <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()}>
+                  <Printer className="h-4 w-4" /> Imprimir
+                </Button>
+              )}
+            </div>
             <div className="space-y-1 mb-4">
               <Label className="text-xs">Seleccionar Fornecedor</Label>
               <Select value={selectedSupplierId} onValueChange={setSelectedSupplierId}>

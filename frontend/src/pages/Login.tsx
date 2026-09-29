@@ -22,7 +22,7 @@ const loginSchema = z.object({
 
 const registerSchema = z.object({
   name: z.string().min(1, { message: "Nome é obrigatório" }),
-  nif: z.string().min(1, { message: "NIF/BI é obrigatório" }),
+  nif: z.string().regex(/^\d{10}$/, { message: "O NIF da empresa deve ter exactamente 10 dígitos numéricos" }),
   phone: z.string().min(1, { message: "Telefone é obrigatório" }),
   email: z.string().email({ message: "Email inválido" }),
   password: z.string()

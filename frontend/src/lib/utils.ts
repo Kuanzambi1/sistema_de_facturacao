@@ -46,6 +46,7 @@ export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   RG: "Recibo Global",
   OR: "Orçamento",
   PP: "Factura Proforma",
+  CM: "Consulta de Mesa",
 };
 
 export const STATUS_LABELS: Record<string, string> = {
@@ -100,6 +101,8 @@ export const PAYMENT_METHODS: Record<string, string> = {
   cartao: "Cartão",
   outro: "Outro",
 };
+
+// Removido: VAT_EXEMPTION_REASONS foi migrado para a tabela parametrizada na base de dados (vat_exemption_reasons)
 
 export function downloadFile(content: string, filename: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });

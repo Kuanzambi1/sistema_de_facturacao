@@ -155,6 +155,25 @@ describe("Módulo Fiscal AGT", () => {
       expect(totals.discountAmount).toBe(1000);
       expect(totals.totalAmount).toBe(10260);
     });
+
+    it("deve evitar diferencial de arredondamento (soma das linhas arredondadas)", () => {
+      // Exemplo de diferencial:
+      // Linha 1: 10.04 + 14% IVA (1.4056 -> arredonda para 1.41) = Total 11.45
+      // Linha 2: 10.04 + 14% IVA (1.4056 -> arredonda para 1.41) = Total 11.45
+      // Se somar totais das linhas: 22.90.
+      // Se aplicar 14% sobre 20.08: 2.8112 -> 2.81. Total 22.89.
+      // O requisito exige que seja a soma das linhas para garantir coerência contabilística!
+      const lines = [
+        calculateLineValues({ quantity: 1, unitPrice: 10.04, vatRate: 14 }),
+        calculateLineValues({ quantity: 1, unitPrice: 10.04, vatRate: 14 })
+      ];
+      
+      const totals = calculateInvoiceTotals(lines);
+      
+      expect(totals.subtotal).toBe(20.08); // 10.04 * 2
+      expect(totals.vatAmount).toBe(2.82); // 1.41 * 2
+      expect(totals.totalAmount).toBe(22.90); // 20.08 + 2.82
+    });
   });
 
   // ─── Constantes Fiscais ───────────────────────────────────────────────────

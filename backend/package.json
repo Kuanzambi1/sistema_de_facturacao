@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "cross-env NODE_ENV=development tsx watch _core/index.ts",
     "build": "esbuild _core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
-    "start": "cross-env NODE_ENV=production node dist/index.js",
+    "start": "cross-env NODE_ENV=production node server.js",
     "check": "tsc --noEmit",
     "db:push": "drizzle-kit generate && drizzle-kit migrate"
   },

@@ -22,6 +22,15 @@ export const VAT_RATES = [
   { rate: 14, label: "Normal (14%)" },
 ];
 
+export const VAT_EXEMPTION_REASONS: Array<{ code: string; description: string; legalBasis: string }> = [
+  { code: "M02", description: "Transmissões de bens e prestações de serviços isentas", legalBasis: "Art. 12.º do CIVA" },
+  { code: "M04", description: "Isenções nas exportações e operações assimiladas", legalBasis: "Art. 14.º do CIVA" },
+  { code: "M11", description: "Regime de Exclusão", legalBasis: "Regime de Exclusão" },
+  { code: "M12", description: "Regime Simplificado", legalBasis: "Regime Simplificado" },
+  { code: "M14", description: "Isenção - Operações com o Estado e outras entidades", legalBasis: "Regimes Especiais" },
+  { code: "M99", description: "Não sujeito a IVA", legalBasis: "Não sujeito" },
+];
+
 // ─── Províncias de Angola ─────────────────────────────────────────────────────
 export const ANGOLA_PROVINCES = [
   "Bengo", "Benguela", "Bié", "Cabinda", "Cuando Cubango",
@@ -55,12 +64,26 @@ export function generateValidationCode(seriesCode: string, year: number, documen
  * Gera o hash SHA-256 do documento conforme os requisitos AGT.
  * O hash é calculado sobre os campos principais do documento.
  */
+let testPrivateKey: string | null = null;
+function getTestPrivateKey(): string {
+  if (!testPrivateKey) {
+    const { privateKey } = crypto.generateKeyPairSync("rsa", {
+      modulusLength: 2048,
+      publicKeyEncoding: { type: "spki", format: "pem" },
+      privateKeyEncoding: { type: "pkcs8", format: "pem" },
+    });
+    testPrivateKey = privateKey;
+  }
+  return testPrivateKey;
+}
+
 export function generateDocumentHash(params: {
   issueDate: string;
   systemDate: string;
   fullNumber: string;
   grossTotal: number;
   previousHash: string;
+  privateKey?: string;
 }): string {
   const data = [
     params.issueDate,
@@ -69,7 +92,11 @@ export function generateDocumentHash(params: {
     params.grossTotal.toFixed(2),
     params.previousHash,
   ].join(";");
-  return crypto.createHash("sha256").update(data, "utf8").digest("base64");
+  
+  const pKey = params.privateKey || getTestPrivateKey();
+  const sign = crypto.createSign("SHA1");
+  sign.update(data, "utf8");
+  return sign.sign(pKey, "base64");
 }
 
 /**
@@ -79,57 +106,8 @@ export function getHashControl(hash: string): string {
   return hash.substring(0, 4);
 }
 
-// ─── Cálculo de IVA ───────────────────────────────────────────────────────────
-export function calculateLineValues(params: {
-  quantity: number;
-  unitPrice: number;
-  discountPercent?: number;
-  vatRate: number;
-}) {
-  const { quantity, unitPrice, discountPercent = 0, vatRate } = params;
-  const grossAmount = quantity * unitPrice;
-  const discountAmount = grossAmount * (discountPercent / 100);
-  const subtotal = grossAmount - discountAmount;
-  const vatAmount = subtotal * (vatRate / 100);
-  const total = subtotal + vatAmount;
-  return {
-    discountAmount: round2(discountAmount),
-    subtotal: round2(subtotal),
-    vatAmount: round2(vatAmount),
-    total: round2(total),
-  };
-}
+export { calculateLineValues, calculateInvoiceTotals } from "./shared/fiscal-math";
 
-export function calculateInvoiceTotals(
-  items: Array<{
-    subtotal: number;
-    vatAmount: number;
-    discountAmount: number;
-    total: number;
-    isService?: boolean;
-  }>,
-  withholdingTaxPercent: number = 0
-) {
-  const subtotal = round2(items.reduce((s, i) => s + i.subtotal, 0));
-  const vatAmount = round2(items.reduce((s, i) => s + i.vatAmount, 0));
-  const discountAmount = round2(items.reduce((s, i) => s + i.discountAmount, 0));
-  
-  let withholdingTaxAmount = 0;
-  if (withholdingTaxPercent > 0) {
-    const serviceSubtotal = items.reduce((s, i) => s + (i.isService ? i.subtotal : 0), 0);
-    withholdingTaxAmount = round2(serviceSubtotal * (withholdingTaxPercent / 100));
-  }
-  
-  const totalAmount = round2(subtotal + vatAmount - withholdingTaxAmount);
-  
-  return { subtotal, vatAmount, discountAmount, withholdingTaxAmount, totalAmount };
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
-
-// ─── Extenso (Kwanzas) ────────────────────────────────────────────────────────
 export function numeroPorExtenso(valor: number): string {
   if (valor === 0) return "Zero Kwanzas";
   

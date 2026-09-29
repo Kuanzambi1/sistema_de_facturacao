@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { formatCurrency, formatKz, formatDate, formatDateTime, DOCUMENT_TYPE_LABELS, STATUS_LABELS, STATUS_COLORS, PAYMENT_METHODS, downloadFile, numeroPorExtenso } from "@/lib/utils";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Download, FileX, CheckCircle2, Printer, Shield, Hash, Coins, Repeat, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, FileX, CheckCircle2, Printer, Shield, Hash, Coins, Repeat, Trash2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -180,10 +180,12 @@ export default function InvoiceDetail() {
       doc.setDrawColor(30, 30, 30);
       doc.setLineWidth(0.4);
       doc.rect(boxX, 12, 82, 34);
-      drawText("ORIGINAL", boxX + 6, 17, 8, "helvetica", "bold");
+      // ── Determinar Original/Segunda Via ──
+      const copyLabel = ((invoice as any).printCount ?? 0) === 0 ? "ORIGINAL" : "SEGUNDA VIA";
+      drawText(copyLabel, boxX + 6, 17, 8, "helvetica", "bold");
       drawText(DOCUMENT_TYPE_LABELS[invoice.documentType] || "Documento", boxX + 6, 24, 12, "helvetica", "bold");
       drawText(`n.º ${invoice.fullNumber || "Rascunho"}`, boxX + 6, 31, 10, "helvetica", "bold");
-      if (invoice.documentType === "PP" || invoice.documentType === "FP" || invoice.documentType === "OR") {
+      if (invoice.documentType === "PP" || invoice.documentType === "FP" || invoice.documentType === "OR" || invoice.documentType === "CM") {
         drawText("(NÃO SERVE DE FACTURA)", boxX + 6, 37, 7, "helvetica", "italic");
       } else if (invoice.relatedInvoiceNumber) {
         drawText(`(Referente a ${invoice.relatedInvoiceNumber})`, boxX + 6, 37, 8, "helvetica", "italic");
@@ -219,16 +221,17 @@ export default function InvoiceDetail() {
       // ── Tabela de metadados ──
       autoTable(doc, {
         startY: y,
-        head: [["Data do Documento", "Data Vencimento", "Data/Hora de Emissão", "Contribuinte", "V/ Ref."]],
+        head: [["Data do Documento", "Data de Operação", "Data Vencimento", "Data/Hora Emissão", "Contribuinte", "V/ Ref."]],
         body: [[
           formatDate(invoice.issueDate),
+          (invoice as any).operationDate ? formatDate((invoice as any).operationDate) : formatDate(invoice.issueDate),
           invoice.dueDate ? formatDate(invoice.dueDate) : "—",
           formatDateTime(invoice.createdAt ?? invoice.issueDate),
           invoice.clientNif || "—",
           invoice.clientRef || "—",
         ]],
         theme: "grid",
-        styles: { fontSize: 8, halign: "center", cellPadding: 2.5, textColor: [30, 30, 30] },
+        styles: { fontSize: 7.5, halign: "center", cellPadding: 2.5, textColor: [30, 30, 30] },
         headStyles: { fillColor: [240, 240, 240], textColor: [60, 60, 60], fontStyle: "bold" },
         margin: { left: mx, right: mx },
       });
@@ -241,30 +244,38 @@ export default function InvoiceDetail() {
         y = drawWrapped(invoice.notes, mx, y, contentW, 9) + 4;
       }
 
-      // ── Linhas do documento ──
-      const tableBody = items?.map((item: any) => [
-        item.productCode || "",
-        item.description,
-        formatKz(Number(item.unitPrice)),
-        `${Number(item.quantity).toFixed(2)}`,
-        `${Number(item.vatRate).toFixed(2)}%`,
-        `${Number(item.discountPercent || 0).toFixed(2)}%`,
-        formatKz(Number(item.total)),
-      ]) || [];
+      // ── Linhas do documento — 8 colunas obrigatórias AGT ──
+      const tableBody = items?.map((item: any) => {
+        const exemptionInfo = Number(item.vatRate) === 0
+          ? (item.vatExemptReasonCode ? `${item.vatExemptReasonCode} - ${item.vatExemptReason || "Isento"}` : (item.vatExemptReason || "Isento"))
+          : "—";
+        return [
+          item.productCode || "",
+          item.description,
+          `${Number(item.quantity).toFixed(2)}`,
+          formatKz(Number(item.unitPrice)),
+          `${Number(item.discountPercent || 0).toFixed(2)}%`,
+          `${Number(item.vatRate).toFixed(2)}%`,
+          exemptionInfo,
+          formatKz(Number(item.total)),
+        ];
+      }) || [];
 
       autoTable(doc, {
         startY: y,
-        head: [["Código", "Descrição", "Preço Uni.", "Qtd.", "Taxa/IVA %", "Desc. %", "Total"]],
+        head: [["Código", "Descrição", "Qtd.", "Preço Unit.", "Desc. %", "IVA %", "Motivo Isenção", "Total"]],
         body: tableBody,
         theme: "grid",
-        headStyles: { fillColor: [60, 60, 60], textColor: [255, 255, 255], fontSize: 8 },
-        bodyStyles: { fontSize: 8, textColor: [30, 30, 30] },
+        headStyles: { fillColor: [60, 60, 60], textColor: [255, 255, 255], fontSize: 7.5 },
+        bodyStyles: { fontSize: 7.5, textColor: [30, 30, 30] },
         columnStyles: {
-          2: { halign: "right" },
-          3: { halign: "right" },
-          4: { halign: "right" },
-          5: { halign: "right" },
-          6: { halign: "right" },
+          0: { cellWidth: 15 },
+          2: { halign: "right", cellWidth: 12 },
+          3: { halign: "right", cellWidth: 28 },
+          4: { halign: "right", cellWidth: 12 },
+          5: { halign: "right", cellWidth: 10 },
+          6: { cellWidth: 28, fontSize: 6 },
+          7: { halign: "right", cellWidth: 32 },
         },
         margin: { left: mx, right: mx },
       });
@@ -344,9 +355,17 @@ export default function InvoiceDetail() {
       const validationNumber = company?.softwareValidationNumber || "000/AGT/202X";
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
+
+        // Hash do documento
+        if (invoice.hash) {
+          doc.setFontSize(7);
+          doc.setTextColor(100, 100, 100);
+          doc.text(`Hash: ${invoice.hash}`, mx, pageH - 22);
+        }
+
         doc.setFontSize(8);
         doc.setTextColor(100, 100, 100);
-        doc.text(`Processado por programa validado n.º ${validationNumber}`, 105, pageH - 15, { align: "center" });
+        doc.text(`Processado por programa validado n.º ${validationNumber} — K360 Facturas v1.0`, 105, pageH - 15, { align: "center" });
         if (invoice.documentType === "PP" || invoice.documentType === "FP" || invoice.documentType === "OR") {
           doc.setTextColor(180, 40, 40);
           doc.setFont("helvetica", "bold");
@@ -356,12 +375,17 @@ export default function InvoiceDetail() {
         }
         if (invoice.atcud) {
           doc.setFontSize(7);
-          doc.text(`ATCUD: ${invoice.atcud}`, 10, pageH - 6);
+          doc.setTextColor(100, 100, 100);
+          doc.text(`ATCUD: ${invoice.atcud}`, mx, pageH - 6);
           if (invoice.hashControl) {
-            doc.text(`Hash: ${invoice.hashControl}`, 10, pageH - 3);
+            doc.text(`Hash Control: ${invoice.hashControl}`, mx + 60, pageH - 6);
           }
         }
-        doc.text(`${i} de ${pageCount}`, right, pageH - 6, { align: "right" });
+        // Marca de cópia e paginação
+        doc.setFontSize(7);
+        doc.setTextColor(130, 130, 130);
+        doc.text(copyLabel, right - 40, pageH - 6);
+        doc.text(`${i} de ${pageCount}`, right, pageH - 3, { align: "right" });
       }
 
       doc.save(filename);
@@ -376,6 +400,7 @@ export default function InvoiceDetail() {
 
   const metaCells: Array<{ label: string; value: string }> = [
     { label: "Data do Documento", value: formatDate(invoice.issueDate) },
+    { label: "Data de Operação", value: (invoice as any).operationDate ? formatDate((invoice as any).operationDate) : formatDate(invoice.issueDate) },
     { label: "Data Vencimento", value: invoice.dueDate ? formatDate(invoice.dueDate) : "—" },
     { label: "Data/Hora de Emissão", value: formatDateTime(invoice.createdAt ?? invoice.issueDate) },
     { label: "Contribuinte", value: invoice.clientNif || "—" },
@@ -446,6 +471,11 @@ export default function InvoiceDetail() {
             <Button variant="outline" size="sm" className="gap-1.5 text-destructive border-destructive hover:bg-destructive/10"
               onClick={() => { if (confirm("Anular este documento? Esta acção não pode ser revertida.")) updateStatus.mutate({ id, status: "anulada" }); }}>
               <FileX className="h-4 w-4" />Anular
+            </Button>
+          )}
+          {["FT", "FR", "FS"].includes(invoice.documentType) && !["anulada", "rascunho", "expirada"].includes(invoice.status) && (
+            <Button variant="outline" size="sm" className="gap-1.5 border-orange-200 text-orange-700 hover:bg-orange-50" onClick={() => navigate(`/documentos/novo?type=NC&ref=${encodeURIComponent(invoice.fullNumber || "")}&clientId=${invoice.clientId || ""}`)}>
+              <RotateCcw className="h-4 w-4" />Emitir N. Crédito
             </Button>
           )}
           {(() => {
@@ -636,7 +666,7 @@ export default function InvoiceDetail() {
         </div>
       )}
 
-      {(invoice.documentType === "PP" || invoice.documentType === "FP" || invoice.documentType === "OR") && invoice.status === "emitida" && (
+      {(invoice.documentType === "PP" || invoice.documentType === "FP" || invoice.documentType === "OR" || invoice.documentType === "CM") && invoice.status === "emitida" && (
         <div className="p-4 bg-amber-50/90 border border-amber-200 rounded-lg flex items-center justify-between gap-3 text-xs sm:text-sm text-amber-900">
           <div className="flex items-center gap-2.5">
             <span className="text-base sm:text-lg">⚠️</span>

@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
-import { COOKIE_NAME, NOT_TENANT_ERR_MSG, PLANS, type PlanId } from "@shared/const";
+import { COOKIE_NAME, NOT_TENANT_ERR_MSG, PLANS, type PlanId } from "./shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { sdk } from "./_core/sdk";
@@ -141,12 +141,14 @@ async function runRecurringRule(tenantId: number, ruleId: number, userId: number
 
   const now = new Date();
   const previousHash = (await db.getPreviousInvoiceHash(tenantId, series.id, number)) ?? "";
+  const company = await db.getCompany(tenantId);
   const hash = generateDocumentHash({
     issueDate: now.toISOString().substring(0, 10),
     systemDate: now.toISOString().substring(0, 10),
     fullNumber,
     grossTotal: totals.totalAmount,
     previousHash,
+    privateKey: company?.rsaPrivateKey ?? undefined,
   });
 
   const invoice = await db.createInvoice(tenantId, {
@@ -252,7 +254,7 @@ export const appRouter = router({
         return { success: true, user };
       }),
     register: publicProcedure
-      .input(z.object({ name: z.string().min(1), email: z.string().email(), password: z.string().min(8).regex(/[A-Z]/, "Deve conter pelo menos uma maiúscula").regex(/[0-9]/, "Deve conter pelo menos um número"), nif: z.string().min(1), phone: z.string().min(1), terms: z.boolean() }))
+      .input(z.object({ name: z.string().min(1), email: z.string().email(), password: z.string().min(8).regex(/[A-Z]/, "Deve conter pelo menos uma maiúscula").regex(/[0-9]/, "Deve conter pelo menos um número"), nif: z.string().regex(/^\d{10}$/, "NIF da empresa deve ter exactamente 10 dígitos numéricos"), phone: z.string().min(1), terms: z.boolean() }))
       .mutation(async ({ input, ctx }) => {
         const existing = await db.getUserByEmail(input.email);
         if (existing) {
@@ -336,7 +338,7 @@ export const appRouter = router({
     upsert: protectedProcedure
       .input(z.object({
         name: z.string().min(1),
-        nif: z.string().min(1),
+        nif: z.string().regex(/^\d{10}$/, "NIF da empresa deve ter exactamente 10 dígitos numéricos"),
         address: z.string().optional(),
         city: z.string().optional(),
         province: z.string().optional(),
@@ -353,6 +355,7 @@ export const appRouter = router({
         agtPortalPassword: z.string().optional(),
         agtEndpoint: z.string().optional(),
         logoUrl: z.string().optional(),
+        softwareValidationNumber: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         const tenantId = requireTenant(ctx.user);
@@ -371,6 +374,25 @@ export const appRouter = router({
         await db.upsertCompany(tenantId, { logoUrl: dataUrl });
         return { url: dataUrl };
       }),
+
+    generateRsaKeys: adminProcedure.mutation(async ({ ctx }) => {
+      const tenantId = requireTenant(ctx.user);
+      const crypto = await import("crypto");
+      
+      const { publicKey, privateKey } = crypto.generateKeyPairSync("rsa", {
+        modulusLength: 1024,
+        publicKeyEncoding: { type: "spki", format: "pem" },
+        privateKeyEncoding: { type: "pkcs8", format: "pem" },
+      });
+
+      await db.upsertCompany(tenantId, { 
+        rsaPrivateKey: privateKey, 
+        rsaPublicKey: publicKey 
+      });
+      await db.addAuditLog(tenantId, { userId: ctx.user.id, userName: ctx.user.name ?? null, action: "gerar_chaves_rsa", entityType: "company", entityLabel: "Chaves RSA Geradas" });
+      
+      return { success: true };
+    }),
   }),
 
   // ─── Clientes ───────────────────────────────────────────────────────────────
@@ -391,7 +413,7 @@ export const appRouter = router({
       .input(z.object({
         name: z.string().min(1),
         nif: z.string().optional(),
-        type: z.enum(["singular", "colectivo", "estrangeiro"]).optional(),
+        type: z.enum(["empresa", "singular", "estado", "outro"]).optional(),
         address: z.string().optional(),
         city: z.string().optional(),
         province: z.string().optional(),
@@ -402,6 +424,19 @@ export const appRouter = router({
         paymentTerms: z.number().optional(),
         creditLimit: z.string().optional(),
         notes: z.string().optional(),
+      }).superRefine((data, ctx) => {
+        const nif = data.nif?.trim() || "";
+        if (data.type === "empresa" || data.type === "estado") {
+          if (!nif) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "NIF é obrigatório para clientes do tipo Empresa ou Estado.", path: ["nif"] });
+          } else if (!/^\d{10}$/.test(nif)) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "O NIF (Empresa/Estado) deve ter exactamente 10 dígitos numéricos.", path: ["nif"] });
+          }
+        } else if (data.type === "singular" && nif) {
+          if (!/^[A-Za-z0-9]{14}$/.test(nif)) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "O NIF (Particular) deve ter exactamente 14 caracteres (BI).", path: ["nif"] });
+          }
+        }
       }))
       .mutation(async ({ input, ctx }) => {
         const tenantId = requireTenant(ctx.user);
@@ -415,7 +450,7 @@ export const appRouter = router({
         id: z.number(),
         name: z.string().min(1).optional(),
         nif: z.string().optional(),
-        type: z.enum(["singular", "colectivo", "estrangeiro"]).optional(),
+        type: z.enum(["empresa", "singular", "estado", "outro"]).optional(),
         address: z.string().optional(),
         city: z.string().optional(),
         province: z.string().optional(),
@@ -426,6 +461,19 @@ export const appRouter = router({
         paymentTerms: z.number().optional(),
         creditLimit: z.string().optional(),
         notes: z.string().optional(),
+      }).superRefine((data, ctx) => {
+        const nif = data.nif?.trim() || "";
+        if (data.type === "empresa" || data.type === "estado") {
+          if (!nif) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "NIF é obrigatório para clientes do tipo Empresa ou Estado.", path: ["nif"] });
+          } else if (!/^\d{10}$/.test(nif)) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "O NIF (Empresa/Estado) deve ter exactamente 10 dígitos numéricos.", path: ["nif"] });
+          }
+        } else if (data.type === "singular" && nif) {
+          if (!/^[A-Za-z0-9]{14}$/.test(nif)) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "O NIF (Particular) deve ter exactamente 14 caracteres (BI).", path: ["nif"] });
+          }
+        }
       }))
       .mutation(async ({ input, ctx }) => {
         const tenantId = requireTenant(ctx.user);
@@ -476,17 +524,34 @@ export const appRouter = router({
     create: protectedProcedure
       .input(z.object({
         name: z.string().min(1),
-        nif: z.string().optional(),
-        type: z.enum(["singular", "colectivo", "estrangeiro"]).optional(),
-        address: z.string().optional(),
+        nif: z.string().min(1),
+        type: z.enum(["empresa", "singular", "estado", "outro"]).optional(),
+        taxRegime: z.enum(["geral", "simplificado", "exclusao"]).optional(),
+        address: z.string().min(1),
         city: z.string().optional(),
         province: z.string().optional(),
-        country: z.string().optional(),
+        country: z.string().min(1),
         phone: z.string().optional(),
         email: z.string().email().optional().or(z.literal("")),
         contactPerson: z.string().optional(),
         paymentTerms: z.number().optional(),
         notes: z.string().optional(),
+      }).superRefine((data, ctx) => {
+        if (!data.phone && !data.email) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Obrigatório fornecer um contacto telefónico ou email do fornecedor.", path: ["phone"] });
+        }
+        const nif = data.nif?.trim() || "";
+        if (data.type === "empresa" || data.type === "estado") {
+          if (!nif) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "NIF é obrigatório para fornecedores do tipo Empresa ou Estado.", path: ["nif"] });
+          } else if (!/^\d{10}$/.test(nif)) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "O NIF (Empresa/Estado) deve ter exactamente 10 dígitos numéricos.", path: ["nif"] });
+          }
+        } else if (data.type === "singular" && nif) {
+          if (!/^[A-Za-z0-9]{14}$/.test(nif)) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "O NIF (Particular) deve ter exactamente 14 caracteres (BI).", path: ["nif"] });
+          }
+        }
       }))
       .mutation(async ({ input, ctx }) => {
         const tenantId = requireTenant(ctx.user);
@@ -499,17 +564,34 @@ export const appRouter = router({
       .input(z.object({
         id: z.number(),
         name: z.string().min(1).optional(),
-        nif: z.string().optional(),
-        type: z.enum(["singular", "colectivo", "estrangeiro"]).optional(),
-        address: z.string().optional(),
+        nif: z.string().min(1).optional(),
+        type: z.enum(["empresa", "singular", "estado", "outro"]).optional(),
+        taxRegime: z.enum(["geral", "simplificado", "exclusao"]).optional(),
+        address: z.string().min(1).optional(),
         city: z.string().optional(),
         province: z.string().optional(),
-        country: z.string().optional(),
+        country: z.string().min(1).optional(),
         phone: z.string().optional(),
         email: z.string().email().optional().or(z.literal("")),
         contactPerson: z.string().optional(),
         paymentTerms: z.number().optional(),
         notes: z.string().optional(),
+      }).superRefine((data, ctx) => {
+        if (!data.phone && !data.email) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Obrigatório fornecer um contacto telefónico ou email do fornecedor.", path: ["phone"] });
+        }
+        const nif = data.nif?.trim() || "";
+        if (data.type === "empresa" || data.type === "estado") {
+          if (!nif) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "NIF é obrigatório para fornecedores do tipo Empresa ou Estado.", path: ["nif"] });
+          } else if (!/^\d{10}$/.test(nif)) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "O NIF (Empresa/Estado) deve ter exactamente 10 dígitos numéricos.", path: ["nif"] });
+          }
+        } else if (data.type === "singular" && nif) {
+          if (!/^[A-Za-z0-9]{14}$/.test(nif)) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "O NIF (Particular) deve ter exactamente 14 caracteres (BI).", path: ["nif"] });
+          }
+        }
       }))
       .mutation(async ({ input, ctx }) => {
         const tenantId = requireTenant(ctx.user);
@@ -688,7 +770,7 @@ export const appRouter = router({
     create: protectedProcedure
       .input(z.object({
         seriesId: z.number(),
-        documentType: z.enum(["FT", "FR", "FS", "FA", "NC", "ND", "RC", "RG", "OR", "PP", "FP"]),
+        documentType: z.enum(["FT", "FR", "FS", "FA", "NC", "ND", "RC", "RG", "OR", "PP", "FP", "CM"]),
         clientId: z.number().optional(),
         clientName: z.string().optional(),
         clientNif: z.string().optional(),
@@ -699,6 +781,8 @@ export const appRouter = router({
         operationDate: z.date().optional(),
         relatedInvoiceId: z.number().optional(),
         relatedInvoiceNumber: z.string().optional(),
+        cancelReason: z.string().optional(),
+        rectificationType: z.enum(["anulacao_total", "rectificacao_parcial"]).optional(),
         paymentMethod: z.enum(["numerario", "transferencia", "cheque", "cartao", "outro"]).optional(),
         notes: z.string().optional(),
         currency: z.string().default("AOA"),
@@ -713,24 +797,55 @@ export const appRouter = router({
           discountPercent: z.number().min(0).max(100).default(0),
           vatRate: z.number().min(0).max(100),
           vatExemptReason: z.string().optional(),
+          vatExemptReasonCode: z.string().optional(),
           type: z.string().optional(),
-        })).min(1),
+        }))
+        .min(1)
+        .refine((items) => items.every((i) => i.vatRate > 0 || !!i.vatExemptReasonCode), {
+          message: "O código de isenção de IVA é obrigatório para artigos com taxa a 0%.",
+        }),
+        isDraft: z.boolean().optional().default(false),
       }))
       .mutation(async ({ input, ctx }) => {
         const tenantId = requireTenant(ctx.user);
 
-        // Orçamentos (OR) e Facturas Proforma (PP) não contam para o limite nem vão para AGT
-        const isQuoteOrProforma = input.documentType === "OR" || input.documentType === "PP" || input.documentType === "FP";
+        // Orçamentos (OR), Pró-formas (PP/FP) e Consultas de Mesa (CM) não contam para o limite nem vão para AGT
+        const isQuoteOrProforma = input.documentType === "OR" || input.documentType === "PP" || input.documentType === "FP" || input.documentType === "CM";
+        
+        if (input.documentType === "NC" && (!input.cancelReason || !input.rectificationType || !input.relatedInvoiceNumber)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Motivo, Tipo de Rectificação e Factura de Origem são obrigatórios para Notas de Crédito." });
+        }
+        
+        if (input.documentType === "ND" && input.items.some(i => i.vatRate !== 0)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Notas de Débito não podem liquidar IVA. Use uma isenção/taxa 0% para repasse de despesas." });
+        }
         if (!isQuoteOrProforma) {
           await assertCanIssueDocument(tenantId);
+
+          // Validar dados obrigatórios da empresa emitente antes de emissão fiscal
+          const emitente = await db.getCompany(tenantId);
+          if (!emitente?.name || !emitente?.nif || !emitente?.address || !emitente?.city || !emitente?.province || (!emitente?.phone && !emitente?.email) || !emitente?.softwareValidationNumber) {
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message: "Faltam dados obrigatórios da empresa nas Configurações (Nome, NIF, Morada, Cidade, Província, Contactos ou Validação de Software).",
+            });
+          }
         }
 
         const series = await db.getSeriesById(tenantId, input.seriesId);
         if (!series) throw new TRPCError({ code: "NOT_FOUND", message: "Série não encontrada" });
 
-        const number = await db.incrementSeriesNumber(tenantId, input.seriesId);
-        const fullNumber = `${series.code}${series.year}/${number}`;
-        const atcud = generateATCUD(series.validationCode ?? "DEMO0000", number);
+        let number = 0;
+        let fullNumber = "Rascunho";
+        let atcud = "";
+        
+        if (!input.isDraft) {
+          number = await db.incrementSeriesNumber(tenantId, input.seriesId);
+          fullNumber = `${series.code}${series.year}/${number}`;
+          atcud = generateATCUD(series.validationCode ?? "DEMO0000", number);
+        }
+
+        const dbExemptions = await db.listVatExemptions(tenantId);
 
         const calculatedItems = input.items.map((item, idx) => {
           const vals = calculateLineValues({
@@ -750,7 +865,12 @@ export const appRouter = router({
             discountPercent: String(item.discountPercent),
             discountAmount: String(vals.discountAmount),
             vatRate: String(item.vatRate),
-            vatExemptReason: item.vatExemptReason ?? null,
+            vatExemptReason: (() => {
+              if (item.vatRate > 0) return null;
+              const ex = dbExemptions.find((e) => e.code === item.vatExemptReasonCode);
+              return ex ? `${ex.description} (${ex.legalBasis})` : item.vatExemptReason ?? null;
+            })(),
+            vatExemptReasonCode: item.vatRate > 0 ? null : (item.vatExemptReasonCode ?? null),
             vatAmount: String(vals.vatAmount),
             subtotal: String(vals.subtotal),
             total: String(vals.total),
@@ -766,15 +886,23 @@ export const appRouter = router({
         })), input.withholdingTaxPercent);
 
         const now = new Date();
-        const previousHash = (await db.getPreviousInvoiceHash(tenantId, input.seriesId, number)) ?? "";
-        const hash = generateDocumentHash({
-          issueDate: input.issueDate.toISOString().substring(0, 10),
-          systemDate: now.toISOString().substring(0, 10),
-          fullNumber,
-          grossTotal: totals.totalAmount,
-          previousHash,
-        });
-        const hashControl = getHashControl(hash);
+        
+        let hash = "";
+        let hashControl = "";
+        
+        if (!input.isDraft) {
+          const company = await db.getCompany(tenantId);
+          const previousHash = (await db.getPreviousInvoiceHash(tenantId, input.seriesId, number)) ?? "";
+          hash = generateDocumentHash({
+            issueDate: input.issueDate.toISOString().substring(0, 10),
+            systemDate: now.toISOString().substring(0, 10),
+            fullNumber,
+            grossTotal: totals.totalAmount,
+            previousHash,
+            privateKey: company?.rsaPrivateKey ?? undefined,
+          });
+          hashControl = getHashControl(hash);
+        }
 
         let clientName = input.clientName ?? null;
         let clientNif = input.clientNif ?? null;
@@ -804,27 +932,30 @@ export const appRouter = router({
           clientAddress,
           clientEmail,
           clientRef: input.clientRef ?? null,
-          issueDate: input.issueDate,
+          issueDate: new Date(),
           dueDate: input.dueDate ?? null,
-          operationDate: input.operationDate ?? null,
+          operationDate: input.operationDate ?? input.issueDate ?? null,
+          relatedInvoiceId: input.relatedInvoiceId ?? null,
+          relatedInvoiceNumber: input.relatedInvoiceNumber ?? null,
+          cancelReason: input.cancelReason ?? null,
+          rectificationType: input.rectificationType ?? null,
           subtotal: String(totals.subtotal),
           vatAmount: String(totals.vatAmount),
           discountAmount: String(totals.discountAmount),
           withholdingTaxAmount: String(totals.withholdingTaxAmount),
           totalAmount: String(totals.totalAmount),
           currency: input.currency,
-          status: "emitida" as const,
-          relatedInvoiceId: input.relatedInvoiceId ?? null,
-          relatedInvoiceNumber: input.relatedInvoiceNumber ?? null,
           paymentMethod: input.paymentMethod ?? null,
           notes: input.notes ?? null,
+          status: input.isDraft ? "rascunho" : "emitida",
           createdBy: ctx.user.id,
+          operatorName: ctx.user.name ?? null,
         };
 
         const invoice = await db.createInvoice(tenantId, invoiceData as any, calculatedItems as any);
         if (!invoice) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-        if (!isQuoteOrProforma) {
+        if (!isQuoteOrProforma && !input.isDraft) {
           await db.applyStockMovementsForInvoice({
             tenantId,
             invoiceId: invoice.id,
@@ -840,7 +971,7 @@ export const appRouter = router({
         await db.addAuditLog(tenantId, {
           userId: ctx.user.id,
           userName: ctx.user.name ?? null,
-          action: "emitir",
+          action: input.isDraft ? "gravar_rascunho" : "emitir",
           entityType: "invoice",
           entityId: invoice.id,
           entityLabel: fullNumber,
@@ -894,17 +1025,12 @@ export const appRouter = router({
         const invoice = await db.getInvoiceById(tenantId, input.id);
         if (!invoice) throw new TRPCError({ code: "NOT_FOUND" });
 
-        const isAdmin = ctx.user.role === "admin";
-        const isPaid = invoice.status === "paga" || invoice.status === "parcialmente_paga";
-
-        if (isPaid) {
-          const ncCount = await db.countCreditNotesForInvoice(tenantId, invoice.id, invoice.fullNumber ?? null);
-          if (ncCount === 0) {
-            throw new TRPCError({ code: "BAD_REQUEST", message: "Documento pago só pode ser eliminado mediante uma nota de crédito (NC) que o referencie." });
-          }
+        if (invoice.status !== "rascunho") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Facturas emitidas não podem ser eliminadas. Deve emitir uma nota de crédito para anular." });
         }
 
-        if (!isAdmin && !isPaid) {
+        const isAdmin = ctx.user.role === "admin";
+        if (!isAdmin) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Sem permissão para eliminar este documento." });
         }
 
@@ -1307,6 +1433,33 @@ export const appRouter = router({
       }),
   }),
 
+  // ─── Motivos de Isenção IVA ──────────────────────────────────────────────────
+  vatExemptions: router({
+    list: protectedProcedure.query(async ({ ctx }) => db.listVatExemptions(requireTenant(ctx.user))),
+    
+    create: adminProcedure
+      .input(z.object({
+        code: z.string().min(1, "Obrigatório"),
+        description: z.string().min(1, "Obrigatório"),
+        legalBasis: z.string().min(1, "Obrigatório"),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const tenantId = requireTenant(ctx.user);
+        const id = await db.createVatExemption(tenantId, input);
+        await db.addAuditLog(tenantId, { userId: ctx.user.id, action: "criar", entityType: "vat_exemption", entityId: id, entityLabel: input.code });
+        return id;
+      }),
+
+    delete: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const tenantId = requireTenant(ctx.user);
+        await db.deleteVatExemption(tenantId, input.id);
+        await db.addAuditLog(tenantId, { userId: ctx.user.id, action: "eliminar", entityType: "vat_exemption", entityId: input.id });
+        return true;
+      }),
+  }),
+
   // ─── Dashboard e Relatórios ─────────────────────────────────────────────────
   reports: router({
     dashboard: protectedProcedure.query(async ({ ctx }) => db.getDashboardStats(requireTenant(ctx.user))),
@@ -1348,6 +1501,42 @@ export const appRouter = router({
       .input(z.object({ supplierId: z.number() }))
       .query(async ({ input, ctx }) => db.getSupplierStatement(requireTenant(ctx.user), input.supplierId)),
 
+    advancedData: protectedProcedure
+      .input(z.object({ dateFrom: z.date(), dateTo: z.date() }))
+      .query(async ({ input, ctx }) => db.getAdvancedData(requireTenant(ctx.user), input.dateFrom, input.dateTo)),
+
+    exportSaft: adminProcedure
+      .input(z.object({ dateFrom: z.string(), dateTo: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        const tenantId = requireTenant(ctx.user);
+        const company = await db.getCompany(tenantId);
+        if (!company) throw new TRPCError({ code: "NOT_FOUND", message: "Empresa não configurada" });
+        
+        const dateFrom = new Date(input.dateFrom);
+        const dateTo = new Date(input.dateTo);
+        const { data: invoices } = await db.listInvoices(tenantId, { limit: 100000 });
+        const filteredInvoices = invoices.filter(inv => {
+          const dt = new Date(inv.issueDate);
+          return dt >= dateFrom && dt <= dateTo;
+        });
+
+        const items: Record<number, any[]> = {};
+        for (const inv of filteredInvoices) {
+          items[inv.id] = await db.getInvoiceItems(tenantId, inv.id);
+        }
+
+        const xml = generateSAFTXML({
+          company,
+          invoices: filteredInvoices,
+          items,
+          dateFrom: input.dateFrom,
+          dateTo: input.dateTo,
+        });
+
+        await db.addAuditLog(tenantId, { userId: ctx.user.id, userName: ctx.user.name ?? null, action: "exportar_saft", entityType: "company", entityLabel: "SAF-T Exportado" });
+        return { xml };
+      }),
+
     sendReminders: adminProcedure.mutation(async ({ ctx }) => {
       const tenantId = requireTenant(ctx.user);
       const receivables = await db.getReceivables(tenantId);
@@ -1368,6 +1557,7 @@ export const appRouter = router({
       return sent;
     }),
   }),
+
 });
 
 export type AppRouter = typeof appRouter;

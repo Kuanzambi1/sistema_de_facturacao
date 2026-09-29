@@ -12,6 +12,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { SAFTExport } from "@/components/SAFTExport";
+import { VatExemptions } from "@/components/VatExemptions";
 
 const DOCUMENT_TYPES = DOCUMENT_TYPE_LABELS;
 
@@ -221,12 +223,12 @@ export default function Settings() {
   const { data: company } = trpc.company.get.useQuery();
   const { data: series } = trpc.series.list.useQuery({});
 
-  const companyForm = useForm({ defaultValues: { name: "", nif: "", address: "", city: "", province: "", country: "Angola", phone: "", email: "", website: "", taxRegime: "geral" as "geral" | "simplificado" | "exclusao", bankName: "", bankIban: "", agtPortalUser: "" } });
+  const companyForm = useForm({ defaultValues: { name: "", nif: "", address: "", city: "", province: "", country: "Angola", phone: "", email: "", website: "", taxRegime: "geral" as "geral" | "simplificado" | "exclusao", bankName: "", bankIban: "", agtPortalUser: "", softwareValidationNumber: "" } });
   const seriesForm = useForm({ defaultValues: { code: "", name: "", documentType: "FT" as any, year: new Date().getFullYear() } });
 
   // Pre-fill company form when data loads
   if (company && !companyForm.getValues("name") && company.name) {
-    companyForm.reset({ name: company.name, nif: company.nif, address: company.address ?? "", city: company.city ?? "", province: company.province ?? "", country: company.country ?? "Angola", phone: company.phone ?? "", email: company.email ?? "", website: company.website ?? "", taxRegime: (company.taxRegime ?? "geral") as any, bankName: company.bankName ?? "", bankIban: company.bankIban ?? "", agtPortalUser: company.agtPortalUser ?? "" });
+    companyForm.reset({ name: company.name, nif: company.nif, address: company.address ?? "", city: company.city ?? "", province: company.province ?? "", country: company.country ?? "Angola", phone: company.phone ?? "", email: company.email ?? "", website: company.website ?? "", taxRegime: (company.taxRegime ?? "geral") as any, bankName: company.bankName ?? "", bankIban: company.bankIban ?? "", agtPortalUser: company.agtPortalUser ?? "", softwareValidationNumber: company.softwareValidationNumber ?? "" });
     if (company.logoUrl) setLogoPreview(company.logoUrl);
   }
 
@@ -243,6 +245,11 @@ export default function Settings() {
   const createSeries = trpc.series.create.useMutation({
     onSuccess: () => { utils.series.list.invalidate(); setSeriesOpen(false); seriesForm.reset(); toast.success("Série criada com sucesso!"); },
     onError: (e) => toast.error(e.message),
+  });
+
+  const generateRsaKeys = trpc.company.generateRsaKeys.useMutation({
+    onSuccess: () => { utils.company.get.invalidate(); toast.success("Novas chaves RSA geradas e aplicadas!"); },
+    onError: (e) => toast.error(`Erro: ${e.message}`),
   });
 
   const { user: currentUser } = useAuth();
@@ -290,12 +297,23 @@ export default function Settings() {
         {/* Empresa */}
         <TabsContent value="company">
           <div className="card-elevated p-6">
-            <h2 className="text-sm font-semibold text-foreground mb-4">Dados da Empresa Emitente</h2>
-            <form onSubmit={companyForm.handleSubmit((d) => upsertCompany.mutate({ ...d, logoUrl: logoPreview ?? undefined }))} className="space-y-4">
+            <h2 className="text-sm font-semibold text-foreground mb-1">Dados da Empresa Emitente</h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              Todos os campos marcados com <span className="text-destructive font-semibold">*</span> são obrigatórios para emissão de documentos fiscais.
+            </p>
+            <form onSubmit={companyForm.handleSubmit((d) => {
+              // Validação rígida antes de submeter
+              if (!d.name || !d.nif || !d.address || !d.city || !d.province) {
+                toast.error("Preencha todos os campos obrigatórios: Nome, NIF, Morada, Cidade e Província.");
+                return;
+              }
+              upsertCompany.mutate({ ...d, logoUrl: logoPreview ?? undefined });
+            })} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2 space-y-1.5">
-                  <Label>Denominação Social *</Label>
-                  <Input {...companyForm.register("name", { required: true })} placeholder="Nome da empresa" />
+                  <Label>Denominação Social <span className="text-destructive">*</span></Label>
+                  <Input {...companyForm.register("name", { required: "Nome da empresa é obrigatório" })} placeholder="Nome da empresa" />
+                  {companyForm.formState.errors.name && <p className="text-xs text-destructive">{companyForm.formState.errors.name.message as string}</p>}
                 </div>
                 <div className="col-span-2 space-y-1.5">
                   <Label>Logótipo da Empresa</Label>
@@ -313,11 +331,12 @@ export default function Settings() {
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>NIF *</Label>
-                  <Input {...companyForm.register("nif", { required: true })} placeholder="000000000" />
+                  <Label>NIF <span className="text-destructive">*</span></Label>
+                  <Input {...companyForm.register("nif", { required: "NIF é obrigatório" })} placeholder="000000000" />
+                  {companyForm.formState.errors.nif && <p className="text-xs text-destructive">{companyForm.formState.errors.nif.message as string}</p>}
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Regime Fiscal</Label>
+                  <Label>Regime Fiscal <span className="text-destructive">*</span></Label>
                   <Select value={companyForm.watch("taxRegime")} onValueChange={(v) => companyForm.setValue("taxRegime", v as any)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -328,24 +347,64 @@ export default function Settings() {
                   </Select>
                 </div>
                 <div className="col-span-2 space-y-1.5">
-                  <Label>Morada</Label>
-                  <Input {...companyForm.register("address")} placeholder="Rua, número, bairro" />
+                  <Label>Morada / Sede <span className="text-destructive">*</span></Label>
+                  <Input {...companyForm.register("address", { required: "Morada é obrigatória" })} placeholder="Rua, número, bairro" />
+                  {companyForm.formState.errors.address && <p className="text-xs text-destructive">{companyForm.formState.errors.address.message as string}</p>}
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Cidade</Label>
-                  <Input {...companyForm.register("city")} />
+                  <Label>Cidade / Localidade <span className="text-destructive">*</span></Label>
+                  <Input {...companyForm.register("city", { required: "Cidade é obrigatória" })} />
+                  {companyForm.formState.errors.city && <p className="text-xs text-destructive">{companyForm.formState.errors.city.message as string}</p>}
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Província</Label>
+                  <Label>Província <span className="text-destructive">*</span></Label>
                   <Select value={companyForm.watch("province")} onValueChange={(v) => companyForm.setValue("province", v)}>
-                    <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                    <SelectTrigger className={!companyForm.watch("province") ? "border-destructive/50" : ""}><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                     <SelectContent>{ANGOLA_PROVINCES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
                   </Select>
+                  {!companyForm.watch("province") && <p className="text-xs text-destructive">Província é obrigatória</p>}
                 </div>
-                <div className="space-y-1.5"><Label>Telefone</Label><Input {...companyForm.register("phone")} /></div>
-                <div className="space-y-1.5"><Label>E-mail</Label><Input {...companyForm.register("email")} type="email" /></div>
+                <div className="space-y-1.5">
+                  <Label>Telefone <span className="text-destructive">*</span></Label>
+                  <Input {...companyForm.register("phone", { required: "Telefone é obrigatório" })} />
+                  {companyForm.formState.errors.phone && <p className="text-xs text-destructive">{companyForm.formState.errors.phone.message as string}</p>}
+                </div>
+                <div className="space-y-1.5">
+                  <Label>E-mail <span className="text-destructive">*</span></Label>
+                  <Input {...companyForm.register("email", { required: "E-mail é obrigatório" })} type="email" />
+                  {companyForm.formState.errors.email && <p className="text-xs text-destructive">{companyForm.formState.errors.email.message as string}</p>}
+                </div>
                 <div className="space-y-1.5"><Label>Website</Label><Input {...companyForm.register("website")} /></div>
                 <div className="space-y-1.5"><Label>Utilizador Portal AGT</Label><Input {...companyForm.register("agtPortalUser")} placeholder="Utilizador do Portal AGT" /></div>
+                <div className="col-span-2 space-y-1.5">
+                  <Label>Identificação do Software (AGT) <span className="text-destructive">*</span></Label>
+                  <Input {...companyForm.register("softwareValidationNumber", { required: "A identificação do software é obrigatória" })} placeholder="000/AGT/202X" />
+                  {companyForm.formState.errors.softwareValidationNumber && <p className="text-xs text-destructive">{companyForm.formState.errors.softwareValidationNumber.message as string}</p>}
+                </div>
+              </div>
+              <div className="border-t border-border pt-4">
+                <h3 className="text-sm font-medium text-foreground mb-3">Segurança e Assinatura Digital (AGT)</h3>
+                <div className="flex items-center justify-between p-4 bg-muted/20 border border-border rounded-md">
+                  <div>
+                    <h4 className="text-sm font-medium">Chaves RSA</h4>
+                    <p className="text-xs text-muted-foreground mt-1">A chave privada é usada para assinar as facturas (obrigatório em Angola).</p>
+                    {(company as any)?.rsaPublicKey && (
+                      <p className="text-xs text-green-600 mt-2 font-medium">✅ Chaves RSA configuradas.</p>
+                    )}
+                  </div>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => {
+                      if (confirm("Gerar novas chaves irá substituir as actuais. Tem a certeza?")) {
+                        generateRsaKeys.mutate();
+                      }
+                    }}
+                    disabled={generateRsaKeys.isPending}
+                  >
+                    {generateRsaKeys.isPending ? "A gerar..." : "Gerar Novas Chaves"}
+                  </Button>
+                </div>
               </div>
               <div className="border-t border-border pt-4">
                 <h3 className="text-sm font-medium text-foreground mb-3">Dados Bancários</h3>
@@ -474,6 +533,21 @@ export default function Settings() {
             </p>
           </div>
         </TabsContent>
+
+        {/* Motivos de Isenção */}
+        {isAdmin && (
+          <TabsContent value="exemptions">
+            <VatExemptions />
+          </TabsContent>
+        )}
+
+        {/* SAF-T (AO) */}
+        {isAdmin && (
+          <TabsContent value="saft">
+            <SAFTExport />
+          </TabsContent>
+        )}
+
         {/* Utilizadores */}
         {isAdmin && (
           <TabsContent value="users">

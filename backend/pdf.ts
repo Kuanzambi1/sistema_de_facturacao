@@ -37,6 +37,7 @@ type InvoiceData = {
   fullNumber: string | null;
   documentType: string;
   atcud: string | null;
+  hash: string | null;
   hashControl: string | null;
   clientName: string | null;
   clientNif: string | null;
@@ -44,6 +45,7 @@ type InvoiceData = {
   clientRef: string | null;
   issueDate: Date | string | null;
   dueDate: Date | string | null;
+  operationDate?: Date | string | null;
   createdAt: Date | string | null;
   subtotal: string | number;
   vatAmount: string | number;
@@ -53,13 +55,17 @@ type InvoiceData = {
   notes: string | null;
   deliveryLocation: string | null;
   relatedInvoiceNumber: string | null;
+  printCount?: number;
   items: Array<{
     productCode: string | null;
     description: string;
     unitPrice: string | number;
     quantity: string | number;
     vatRate: string | number;
+    vatExemptReason?: string | null;
+    vatExemptReasonCode?: string | null;
     discountPercent: string | number;
+    discountAmount?: string | number;
     vatAmount: string | number;
     subtotal: string | number;
     total: string | number;
@@ -103,6 +109,9 @@ export async function generateInvoicePdf(invoice: InvoiceData, company: CompanyD
     doc.text(lines, x, y);
     return y + lines.length * (size * 0.45);
   };
+
+  // ── Determinar se é ORIGINAL ou SEGUNDA VIA ──
+  const copyLabel = (invoice.printCount ?? 0) === 0 ? "ORIGINAL" : "SEGUNDA VIA";
 
   const subtotalNum = Number(invoice.subtotal ?? 0);
   const vatNum = Number(invoice.vatAmount ?? 0);
@@ -151,7 +160,7 @@ export async function generateInvoicePdf(invoice: InvoiceData, company: CompanyD
   doc.setDrawColor(30, 30, 30);
   doc.setLineWidth(0.4);
   doc.rect(boxX, 12, 82, 34);
-  drawText("ORIGINAL", boxX + 6, 17, 8, "helvetica", "bold");
+  drawText(copyLabel, boxX + 6, 17, 8, "helvetica", "bold");
   drawText(DOCUMENT_TYPE_LABELS[invoice.documentType] || "Documento", boxX + 6, 24, 12, "helvetica", "bold");
   drawText(`n.º ${invoice.fullNumber || "Rascunho"}`, boxX + 6, 31, 10, "helvetica", "bold");
   if (invoice.documentType === "PP" || invoice.documentType === "FP" || invoice.documentType === "OR") {
@@ -181,18 +190,22 @@ export async function generateInvoicePdf(invoice: InvoiceData, company: CompanyD
   y += 6;
 
   // ── Tabela de metadados ──
+  const metaHead = ["Data do Documento", "Data de Operação", "Data Vencimento", "Data/Hora Emissão", "Contribuinte", "V/ Ref."];
+  const metaBody = [[
+    formatDate(invoice.issueDate),
+    invoice.operationDate ? formatDate(invoice.operationDate) : formatDate(invoice.issueDate),
+    invoice.dueDate ? formatDate(invoice.dueDate) : "—",
+    formatDateTime(invoice.createdAt ?? invoice.issueDate),
+    invoice.clientNif || "—",
+    invoice.clientRef || "—",
+  ]];
+
   autoTable(doc, {
     startY: y,
-    head: [["Data do Documento", "Data Vencimento", "Data/Hora de Emissão", "Contribuinte", "V/ Ref."]],
-    body: [[
-      formatDate(invoice.issueDate),
-      invoice.dueDate ? formatDate(invoice.dueDate) : "—",
-      formatDateTime(invoice.createdAt ?? invoice.issueDate),
-      invoice.clientNif || "—",
-      invoice.clientRef || "—",
-    ]],
+    head: [metaHead],
+    body: metaBody,
     theme: "grid",
-    styles: { fontSize: 8, halign: "center", cellPadding: 2.5, textColor: [30, 30, 30] },
+    styles: { fontSize: 7.5, halign: "center", cellPadding: 2.5, textColor: [30, 30, 30] },
     headStyles: { fillColor: [240, 240, 240], textColor: [60, 60, 60], fontStyle: "bold" },
     margin: { left: mx, right: mx },
   });
@@ -205,31 +218,39 @@ export async function generateInvoicePdf(invoice: InvoiceData, company: CompanyD
     y = drawWrapped(invoice.notes, mx, y, contentW, 9) + 4;
   }
 
-  // ── Linhas do documento ──
-  const tableBody = (invoice.items ?? []).map((item) => [
-    item.productCode || "",
-    item.description,
-    formatKz(Number(item.unitPrice)),
-    `${Number(item.quantity).toFixed(2)}`,
-    `${Number(item.vatRate).toFixed(2)}%`,
-    `${Number(item.discountPercent || 0).toFixed(2)}%`,
-    formatKz(Number(item.total)),
-  ]);
+  // ── Linhas do documento — 8 colunas obrigatórias AGT ──
+  const tableBody = (invoice.items ?? []).map((item) => {
+    const exemptionInfo = Number(item.vatRate) === 0
+      ? (item.vatExemptReasonCode ? `${item.vatExemptReasonCode} - ${item.vatExemptReason || "Isento"}` : (item.vatExemptReason || "Isento"))
+      : "—";
+    return [
+      item.productCode || "",
+      item.description,
+      `${Number(item.quantity).toFixed(2)}`,
+      formatKz(Number(item.unitPrice)),
+      `${Number(item.discountPercent || 0).toFixed(2)}%`,
+      `${Number(item.vatRate).toFixed(2)}%`,
+      exemptionInfo,
+      formatKz(Number(item.total)),
+    ];
+  });
 
   autoTable(doc, {
     startY: y,
-    head: [["Código", "Descrição", "Preço Uni.", "Qtd.", "Taxa/IVA %", "Desc. %", "Total"]],
+    head: [["Código", "Descrição", "Qtd.", "Preço Unit.", "Desc. %", "IVA %", "Motivo Isenção", "Total"]],
     body: tableBody,
     theme: "grid",
-    headStyles: { fillColor: [60, 60, 60], textColor: [255, 255, 255], fontSize: 8 },
-    bodyStyles: { fontSize: 8, textColor: [30, 30, 30] },
-    columnStyles: {
-      2: { halign: "right" },
-      3: { halign: "right" },
-      4: { halign: "right" },
-      5: { halign: "right" },
-      6: { halign: "right" },
-    },
+    headStyles: { fillColor: [60, 60, 60], textColor: [255, 255, 255], fontSize: 7.5 },
+    bodyStyles: { fontSize: 7.5, textColor: [30, 30, 30] },
+      columnStyles: {
+        0: { cellWidth: 15 },
+        2: { halign: "right", cellWidth: 12 },
+        3: { halign: "right", cellWidth: 28 },
+        4: { halign: "right", cellWidth: 12 },
+        5: { halign: "right", cellWidth: 10 },
+        6: { cellWidth: 28, fontSize: 6 },
+        7: { halign: "right", cellWidth: 32 },
+      },
     margin: { left: mx, right: mx },
   });
   y = (doc as any).lastAutoTable.finalY + 6;
@@ -308,9 +329,18 @@ export async function generateInvoicePdf(invoice: InvoiceData, company: CompanyD
   const validationNumber = company.softwareValidationNumber || "000/AGT/202X";
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
-    doc.setFontSize(8);
+
+    // Hash do documento e identificação do software
+    doc.setFontSize(7);
     doc.setTextColor(100, 100, 100);
-    doc.text(`Processado por programa validado n.º ${validationNumber}`, 105, pageH - 15, { align: "center" });
+
+    if (invoice.hash) {
+      doc.text(`Hash: ${invoice.hash}`, mx, pageH - 22);
+    }
+
+    doc.setFontSize(8);
+    doc.text(`Processado por programa validado n.º ${validationNumber} — K360 Facturas v1.0`, 105, pageH - 15, { align: "center" });
+
     if (invoice.documentType === "PP" || invoice.documentType === "FP" || invoice.documentType === "OR") {
       doc.setTextColor(180, 40, 40);
       doc.setFont("helvetica", "bold");
@@ -318,14 +348,19 @@ export async function generateInvoicePdf(invoice: InvoiceData, company: CompanyD
     } else {
       doc.text("Conforme legislação fiscal angolana — AGT", 105, pageH - 11, { align: "center" });
     }
-    if (invoice.atcud) {
-      doc.setFontSize(7);
-      doc.text(`ATCUD: ${invoice.atcud}`, 10, pageH - 6);
-      if (invoice.hashControl) {
-        doc.text(`Hash: ${invoice.hashControl}`, 10, pageH - 3);
-      }
+
+    doc.setFontSize(7);
+    doc.setTextColor(100, 100, 100);
+    if (invoice.hashControl) {
+      doc.text(`Assinatura: ${invoice.hashControl}`, mx, pageH - 6);
     }
-    doc.text(`${i} de ${pageCount}`, right, pageH - 6, { align: "right" });
+
+    // Marca de cópia (ORIGINAL / SEGUNDA VIA)
+    doc.setFontSize(7);
+    doc.setTextColor(130, 130, 130);
+    doc.text(copyLabel, right - 40, pageH - 6);
+
+    doc.text(`${i} de ${pageCount}`, right, pageH - 3, { align: "right" });
   }
 
   const arrayBuffer = doc.output("arraybuffer");

@@ -22,3 +22,4 @@ export * from "./audit";
 export * from "./agt";
 export * from "./inventory";
 export * from "./reports";
+export * from "./vatExemptions";

@@ -117,19 +117,31 @@ export default function Suppliers() {
                 <Label>Nome / Denominação Social *</Label>
                 <Input {...register("name", { required: true })} placeholder="Nome completo ou razão social" className={errors.name ? "border-destructive" : ""} />
               </div>
-              <div className="space-y-1.5"><Label>NIF</Label><Input {...register("nif")} placeholder="000000000" /></div>
+              <div className="space-y-1.5"><Label>NIF *</Label><Input {...register("nif", { required: true })} placeholder="000000000" className={errors.nif ? "border-destructive" : ""} /></div>
               <div className="space-y-1.5">
                 <Label>Tipo</Label>
                 <Select value={watch("type")} onValueChange={(v) => setValue("type", v as any)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="empresa">Empresa</SelectItem>
                     <SelectItem value="singular">Pessoa Singular</SelectItem>
-                    <SelectItem value="colectivo">Pessoa Colectiva</SelectItem>
-                    <SelectItem value="estrangeiro">Entidade Estrangeira</SelectItem>
+                    <SelectItem value="estado">Estado</SelectItem>
+                    <SelectItem value="outro">Outro</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div className="col-span-2 space-y-1.5"><Label>Morada</Label><Input {...register("address")} placeholder="Rua, número, bairro" /></div>
+              <div className="space-y-1.5">
+                <Label>Regime Fiscal</Label>
+                <Select value={watch("taxRegime")} onValueChange={(v) => setValue("taxRegime", v as any)}>
+                  <SelectTrigger><SelectValue placeholder="Seleccione o regime..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="geral">Regime Geral</SelectItem>
+                    <SelectItem value="simplificado">Regime Simplificado</SelectItem>
+                    <SelectItem value="exclusao">Regime de Exclusão</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2 space-y-1.5"><Label>Morada *</Label><Input {...register("address", { required: true })} placeholder="Rua, número, bairro" className={errors.address ? "border-destructive" : ""} /></div>
               <div className="space-y-1.5"><Label>Cidade</Label><Input {...register("city")} /></div>
               <div className="space-y-1.5">
                 <Label>Província</Label>
@@ -138,9 +150,15 @@ export default function Suppliers() {
                   <SelectContent>{ANGOLA_PROVINCES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5"><Label>País</Label><Input {...register("country")} /></div>
-              <div className="space-y-1.5"><Label>Telefone</Label><Input {...register("phone")} /></div>
-              <div className="space-y-1.5"><Label>E-mail</Label><Input {...register("email")} type="email" /></div>
+              <div className="space-y-1.5"><Label>País *</Label><Input {...register("country", { required: true })} className={errors.country ? "border-destructive" : ""} /></div>
+              <div className="space-y-1.5">
+                <Label>Telefone / E-mail *</Label>
+                <Input {...register("phone")} placeholder="Preencha telefone ou e-mail" className={!watch("phone") && !watch("email") ? "border-amber-300" : ""} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>E-mail / Telefone *</Label>
+                <Input {...register("email")} type="email" placeholder="Preencha telefone ou e-mail" className={!watch("phone") && !watch("email") ? "border-amber-300" : ""} />
+              </div>
               <div className="space-y-1.5"><Label>Pessoa de Contacto</Label><Input {...register("contactPerson")} /></div>
               <div className="space-y-1.5"><Label>Prazo de Pagamento (dias)</Label><Input {...register("paymentTerms", { valueAsNumber: true })} type="number" /></div>
               <div className="col-span-2 space-y-1.5"><Label>Notas</Label><Textarea {...register("notes")} rows={2} /></div>

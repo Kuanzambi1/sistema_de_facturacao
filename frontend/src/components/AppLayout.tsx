@@ -104,23 +104,23 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             {navItems.map((item) => {
               const isActive = item.href === "/dashboard" ? location === "/dashboard" : location.startsWith(item.href);
               return (
-                <Link key={item.href} href={item.href}>
-                  <a
-                    className={cn(
-                      "sidebar-nav-item",
-                      isActive && "active",
-                      !sidebarOpen && "justify-center px-2"
-                    )}
-                    title={!sidebarOpen ? item.label : undefined}
-                  >
-                    <item.icon className={cn("flex-shrink-0 transition-all", sidebarOpen ? "h-4.5 w-4.5" : "h-5 w-5")} />
-                    {sidebarOpen && (
-                      <span className="truncate">{item.label}</span>
-                    )}
-                    {isActive && sidebarOpen && (
-                      <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
-                    )}
-                  </a>
+                <Link 
+                  key={item.href} 
+                  href={item.href}
+                  className={cn(
+                    "sidebar-nav-item",
+                    isActive && "active",
+                    !sidebarOpen && "justify-center px-2"
+                  )}
+                  title={!sidebarOpen ? item.label : undefined}
+                >
+                  <item.icon className={cn("flex-shrink-0 transition-all", sidebarOpen ? "h-4.5 w-4.5" : "h-5 w-5")} />
+                  {sidebarOpen && (
+                    <span className="truncate">{item.label}</span>
+                  )}
+                  {isActive && sidebarOpen && (
+                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
+                  )}
                 </Link>
               );
             })}
@@ -141,23 +141,23 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 {adminNavItems.map((item) => {
                   const isActive = location.startsWith(item.href);
                   return (
-                    <Link key={item.href} href={item.href}>
-                      <a
-                        className={cn(
-                          "sidebar-nav-item",
-                          isActive && "active",
-                          !sidebarOpen && "justify-center px-2"
-                        )}
-                        title={!sidebarOpen ? item.label : undefined}
-                      >
-                        <item.icon className={cn("flex-shrink-0 transition-all", sidebarOpen ? "h-4.5 w-4.5" : "h-5 w-5")} />
-                        {sidebarOpen && (
-                          <span className="truncate">{item.label}</span>
-                        )}
-                        {isActive && sidebarOpen && (
-                          <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
-                        )}
-                      </a>
+                    <Link 
+                      key={item.href} 
+                      href={item.href}
+                      className={cn(
+                        "sidebar-nav-item",
+                        isActive && "active",
+                        !sidebarOpen && "justify-center px-2"
+                      )}
+                      title={!sidebarOpen ? item.label : undefined}
+                    >
+                      <item.icon className={cn("flex-shrink-0 transition-all", sidebarOpen ? "h-4.5 w-4.5" : "h-5 w-5")} />
+                      {sidebarOpen && (
+                        <span className="truncate">{item.label}</span>
+                      )}
+                      {isActive && sidebarOpen && (
+                        <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
+                      )}
                     </Link>
                   );
                 })}
@@ -190,15 +190,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <DropdownMenuContent align="end" className="w-52 rounded-xl border-border/60 shadow-lg">
               {user?.role === "admin" && (
                 <DropdownMenuItem asChild className="rounded-lg">
-                  <Link href="/auditoria">
-                    <a className="flex items-center gap-2.5 cursor-pointer py-2 font-medium text-violet-700">
-                      <ShieldCheck className="h-4 w-4" /> Trilha de Auditoria
-                    </a>
+                  <Link href="/auditoria" className="flex items-center gap-2.5 cursor-pointer py-2 font-medium text-violet-700">
+                    <ShieldCheck className="h-4 w-4" /> Trilha de Auditoria
                   </Link>
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem asChild className="rounded-lg">
-                <Link href="/configuracoes"><a className="flex items-center gap-2.5 cursor-pointer py-2"><Settings className="h-4 w-4 text-muted-foreground" /> Configurações</a></Link>
+                <Link href="/configuracoes" className="flex items-center gap-2.5 cursor-pointer py-2"><Settings className="h-4 w-4 text-muted-foreground" /> Configurações</Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem

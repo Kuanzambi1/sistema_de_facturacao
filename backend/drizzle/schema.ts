@@ -67,6 +67,8 @@ export const company = mysqlTable("company", {
   bankName: varchar("bankName", { length: 100 }),
   bankIban: varchar("bankIban", { length: 50 }),
   bankSwift: varchar("bankSwift", { length: 20 }),
+  rsaPrivateKey: text("rsaPrivateKey"),
+  rsaPublicKey: text("rsaPublicKey"),
   digitalSignatureKey: text("digitalSignatureKey"),
   agtPortalUser: varchar("agtPortalUser", { length: 100 }),
   agtPortalPassword: text("agtPortalPassword"),
@@ -87,7 +89,7 @@ export const invoiceSeries = mysqlTable(
     code: varchar("code", { length: 20 }).notNull(),
     name: varchar("name", { length: 100 }).notNull(),
     documentType: mysqlEnum("documentType", [
-      "FT", "FR", "FS", "FA", "NC", "ND", "RC", "RG", "OR", "PP", "FP",
+      "FT", "FR", "FS", "FA", "NC", "ND", "RC", "RG", "OR", "PP", "FP", "CM"
     ]).notNull(),
     validationCode: varchar("validationCode", { length: 50 }),
     lastNumber: int("lastNumber").default(0).notNull(),
@@ -110,7 +112,7 @@ export const clients = mysqlTable("clients", {
   code: varchar("code", { length: 20 }),
   name: varchar("name", { length: 255 }).notNull(),
   nif: varchar("nif", { length: 20 }),
-  type: mysqlEnum("type", ["singular", "colectivo", "estrangeiro"]).default("colectivo"),
+  type: mysqlEnum("type", ["empresa", "singular", "estado", "outro"]).default("empresa"),
   address: text("address"),
   city: varchar("city", { length: 100 }),
   province: varchar("province", { length: 100 }),
@@ -136,7 +138,8 @@ export const suppliers = mysqlTable("suppliers", {
   code: varchar("code", { length: 20 }),
   name: varchar("name", { length: 255 }).notNull(),
   nif: varchar("nif", { length: 20 }),
-  type: mysqlEnum("type", ["singular", "colectivo", "estrangeiro"]).default("colectivo"),
+  type: mysqlEnum("type", ["empresa", "singular", "estado", "outro"]).default("empresa"),
+  taxRegime: mysqlEnum("taxRegime", ["geral", "simplificado", "exclusao"]).default("geral"),
   address: text("address"),
   city: varchar("city", { length: 100 }),
   province: varchar("province", { length: 100 }),
@@ -197,7 +200,7 @@ export const invoices = mysqlTable(
     tenantId: int("tenantId").notNull(),
     seriesId: int("seriesId").notNull(),
     documentType: mysqlEnum("documentType", [
-      "FT", "FR", "FS", "FA", "NC", "ND", "RC", "RG", "OR", "PP", "FP",
+      "FT", "FR", "FS", "FA", "NC", "ND", "RC", "RG", "OR", "PP", "FP", "CM"
     ]).notNull(),
     number: int("number").notNull(),
     fullNumber: varchar("fullNumber", { length: 50 }).notNull(),
@@ -247,6 +250,8 @@ export const invoices = mysqlTable(
     relatedInvoiceId: int("relatedInvoiceId"),
     relatedInvoiceNumber: varchar("relatedInvoiceNumber", { length: 50 }),
     convertedInvoiceId: int("convertedInvoiceId"),
+    cancelReason: varchar("cancelReason", { length: 255 }),
+    rectificationType: mysqlEnum("rectificationType", ["anulacao_total", "rectificacao_parcial"]),
     recurringRuleId: int("recurringRuleId"),
     paymentMethod: mysqlEnum("paymentMethod", [
       "numerario", "transferencia", "cheque", "cartao", "outro",
@@ -260,11 +265,13 @@ export const invoices = mysqlTable(
     internalNotes: text("internalNotes"),
     pdfUrl: text("pdfUrl"),
     xmlUrl: text("xmlUrl"),
+    printCount: int("printCount").default(0).notNull(),
     agtSubmitted: boolean("agtSubmitted").default(false),
     agtSubmissionDate: datetime("agtSubmissionDate"),
     agtResponse: text("agtResponse"),
 
     createdBy: int("createdBy"),
+    operatorName: varchar("operatorName", { length: 255 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -289,6 +296,7 @@ export const invoiceItems = mysqlTable("invoice_items", {
   discountAmount: decimal("discountAmount", { precision: 15, scale: 2 }).default("0"),
   vatRate: decimal("vatRate", { precision: 5, scale: 2 }).notNull(),
   vatExemptReason: varchar("vatExemptReason", { length: 255 }),
+  vatExemptReasonCode: varchar("vatExemptReasonCode", { length: 10 }),
   vatAmount: decimal("vatAmount", { precision: 15, scale: 2 }).notNull(),
   subtotal: decimal("subtotal", { precision: 15, scale: 2 }).notNull(),
   total: decimal("total", { precision: 15, scale: 2 }).notNull(),
@@ -392,3 +400,15 @@ export const agtSubmissions = mysqlTable("agt_submissions", {
 });
 
 export type AgtSubmission = typeof agtSubmissions.$inferSelect;
+
+// ─── Motivos de Isenção de IVA ────────────────────────────────────────────────
+export const vatExemptionReasons = mysqlTable("vat_exemption_reasons", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  code: varchar("code", { length: 10 }).notNull(),
+  description: varchar("description", { length: 255 }).notNull(),
+  legalBasis: varchar("legalBasis", { length: 255 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type VatExemptionReason = typeof vatExemptionReasons.$inferSelect;

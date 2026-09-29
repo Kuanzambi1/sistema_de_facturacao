@@ -145,17 +145,18 @@ export default function Clients() {
                 <Input {...register("name", { required: true })} placeholder="Nome completo ou razão social" className={errors.name ? "border-destructive" : ""} />
               </div>
               <div className="space-y-1.5">
-                <Label>NIF</Label>
-                <Input {...register("nif")} placeholder="000000000" />
+                <Label>NIF {(watch("type") === "empresa" || watch("type") === "estado") && <span className="text-destructive">*</span>}</Label>
+                <Input {...register("nif", { required: watch("type") === "empresa" || watch("type") === "estado" })} placeholder="000000000" className={errors.nif ? "border-destructive" : ""} />
               </div>
               <div className="space-y-1.5">
                 <Label>Tipo de Contribuinte</Label>
                 <Select value={watch("type")} onValueChange={(v) => setValue("type", v as any)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="empresa">Empresa</SelectItem>
                     <SelectItem value="singular">Pessoa Singular</SelectItem>
-                    <SelectItem value="colectivo">Pessoa Colectiva</SelectItem>
-                    <SelectItem value="estrangeiro">Entidade Estrangeira</SelectItem>
+                    <SelectItem value="estado">Estado</SelectItem>
+                    <SelectItem value="outro">Outro</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

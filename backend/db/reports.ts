@@ -270,3 +270,36 @@ export async function getSupplierStatement(tenantId: number, supplierId: number)
     totalCost,
   };
 }
+
+export async function getAdvancedData(tenantId: number, dateFrom: Date, dateTo: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const query = sql`
+    SELECT
+      i.id, i.fullNumber, i.documentType, i.issueDate, i.status, i.clientId, i.clientName, i.clientNif,
+      i.subtotal as invoiceSubtotal, i.vatAmount as invoiceVat, i.discountAmount as invoiceDiscount, i.totalAmount as invoiceTotal,
+      ii.productId, ii.productCode, ii.description, ii.quantity, ii.unitPrice, ii.vatRate, ii.subtotal as itemSubtotal, ii.vatAmount as itemVat, ii.totalAmount as itemTotal
+    FROM invoices i
+    LEFT JOIN invoice_items ii ON ii.invoiceId = i.id
+    WHERE i.tenantId = ${tenantId}
+      AND (ii.tenantId = ${tenantId} OR ii.tenantId IS NULL)
+      AND i.issueDate BETWEEN ${dateFrom} AND ${dateTo}
+    ORDER BY i.issueDate DESC
+  `;
+  const result = await db.execute(query);
+  const rows = (result as unknown as any[][])[0] ?? [];
+  return rows.map((r: any) => ({
+    ...r,
+    invoiceSubtotal: Number(r.invoiceSubtotal),
+    invoiceVat: Number(r.invoiceVat),
+    invoiceDiscount: Number(r.invoiceDiscount),
+    invoiceTotal: Number(r.invoiceTotal),
+    quantity: Number(r.quantity || 0),
+    unitPrice: Number(r.unitPrice || 0),
+    vatRate: Number(r.vatRate || 0),
+    itemSubtotal: Number(r.itemSubtotal || 0),
+    itemVat: Number(r.itemVat || 0),
+    itemTotal: Number(r.itemTotal || 0),
+  }));
+}

@@ -105,7 +105,7 @@ export default function Invoices() {
             </tr></thead>
             <tbody>
               {isLoading && <tr><td colSpan={8} className="text-center py-10 text-muted-foreground text-sm">A carregar...</td></tr>}
-              {!isLoading && data?.data.map((inv) => (
+              {!isLoading && data?.data?.map((inv) => (
                 <tr key={inv.id}>
                   <td>
                     <Link href={`/documentos/${inv.id}`}>
@@ -159,7 +159,7 @@ export default function Invoices() {
                   </td>
                 </tr>
               ))}
-              {!isLoading && data?.data.length === 0 && (
+              {!isLoading && data?.data?.length === 0 && (
                 <tr><td colSpan={8} className="text-center py-10 text-muted-foreground text-sm">
                   Nenhum documento encontrado.{" "}
                   <Link href="/documentos/novo"><a className="text-primary font-medium hover:underline">Emitir primeiro documento</a></Link>
