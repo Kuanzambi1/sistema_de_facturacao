@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { formatCurrency, formatKz, formatDate, formatDateTime, DOCUMENT_TYPE_LABELS, STATUS_LABELS, STATUS_COLORS, PAYMENT_METHODS, downloadFile, numeroPorExtenso } from "@/lib/utils";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Download, FileX, CheckCircle2, Printer, Shield, Hash, Coins, Repeat, Trash2, RotateCcw } from "lucide-react";
+import { ArrowLeft, Download, FileX, CheckCircle2, Printer, Shield, Hash, Coins, Repeat, Trash2, RotateCcw, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -183,7 +183,8 @@ export default function InvoiceDetail() {
       // ── Determinar Original/Segunda Via ──
       const copyLabel = ((invoice as any).printCount ?? 0) === 0 ? "ORIGINAL" : "SEGUNDA VIA";
       drawText(copyLabel, boxX + 6, 17, 8, "helvetica", "bold");
-      drawText(DOCUMENT_TYPE_LABELS[invoice.documentType] || "Documento", boxX + 6, 24, 12, "helvetica", "bold");
+      const docTypeLabel = DOCUMENT_TYPE_LABELS[invoice.documentType] || "Documento";
+      drawText(invoice.status === "anulada" ? `${docTypeLabel} (ANULADA)` : docTypeLabel, boxX + 6, 24, 11, "helvetica", "bold");
       drawText(`n.º ${invoice.fullNumber || "Rascunho"}`, boxX + 6, 31, 10, "helvetica", "bold");
       if (invoice.documentType === "PP" || invoice.documentType === "FP" || invoice.documentType === "OR" || invoice.documentType === "CM") {
         drawText("(NÃO SERVE DE FACTURA)", boxX + 6, 37, 7, "helvetica", "italic");
@@ -237,11 +238,50 @@ export default function InvoiceDetail() {
       });
       y = (doc as any).lastAutoTable.finalY + 6;
 
-      // ── Observações ──
+      // ── Observações e Motivos ──
       if (invoice.notes) {
         drawText("Observações", mx, y, 9, "helvetica", "bold");
         y += 5;
         y = drawWrapped(invoice.notes, mx, y, contentW, 9) + 4;
+      }
+      if (invoice.cancelReason && (invoice.documentType === "NC" || invoice.status === "anulada")) {
+        drawText("Motivo da Rectificação / Anulação", mx, y, 9, "helvetica", "bold");
+        y += 5;
+        const typeLabel = invoice.documentType === "NC"
+          ? ((invoice as any).rectificationType === "anulacao_total" ? "Anulação Total" : "Rectificação Parcial")
+          : "Documento Anulado";
+        y = drawWrapped(`${typeLabel} — ${invoice.cancelReason}`, mx, y, contentW, 9) + 4;
+      }
+
+      // ── Detalhes do Recebimento (Apenas para RC/RG) ──
+      if ((invoice.documentType === "RC" || invoice.documentType === "RG") && (invoice as any).relatedInvoice) {
+        const ri = (invoice as any).relatedInvoice;
+        const valorPendente = Math.max(0, Number(ri.totalAmount) - Number(ri.paidAmount));
+        
+        drawText("Detalhes do Recebimento", mx, y, 9, "helvetica", "bold");
+        y += 5;
+        
+        const rcRows = [
+          ["Documento Liquidado", "Valor Recebido", "Imposto Retido", "Valor Pendente", "Meio de Pagamento", "Data Pag."],
+          [
+            ri.fullNumber || "—",
+            formatKz(Number(invoice.totalAmount)),
+            formatKz(Number(invoice.withholdingTaxAmount || 0)),
+            formatKz(valorPendente),
+            (invoice.paymentMethod || "transferencia").toUpperCase(),
+            formatDate((invoice as any).operationDate || invoice.issueDate)
+          ]
+        ];
+        autoTable(doc, {
+          startY: y,
+          head: [rcRows[0]],
+          body: [rcRows[1]],
+          theme: "grid",
+          styles: { fontSize: 7.5, halign: "center", cellPadding: 2.5, textColor: [30, 30, 30] },
+          headStyles: { fillColor: [240, 240, 240], textColor: [60, 60, 60], fontStyle: "bold" },
+          margin: { left: mx, right: mx },
+        });
+        y = (doc as any).lastAutoTable.finalY + 6;
       }
 
       // ── Linhas do documento — 8 colunas obrigatórias AGT ──
@@ -350,6 +390,21 @@ export default function InvoiceDetail() {
         y = drawWrapped(`${bankLine}IBAN: ${company.bankIban}`, mx, y, contentW, 9) + 4;
       }
 
+      // ── Assinatura para Notas de Crédito / Débito (Tomada de Conhecimento) ──
+      if (invoice.documentType === "NC" || invoice.documentType === "ND") {
+        y += 15;
+        if (y > pageH - 45) {
+          doc.addPage();
+          y = 20;
+        }
+        const sigWidth = 70;
+        const sigX = mx + (contentW - sigWidth) / 2;
+        doc.setDrawColor(100, 100, 100);
+        doc.line(sigX, y, sigX + sigWidth, y);
+        drawText("Tomada de conhecimento do adquirente (Assinatura / Carimbo)", 105, y + 4, 7.5, "helvetica", "italic", { align: "center" });
+        y += 10;
+      }
+
       // ── Rodapé em todas as páginas ──
       const pageCount = doc.getNumberOfPages();
       const validationNumber = company?.softwareValidationNumber || "000/AGT/202X";
@@ -437,6 +492,9 @@ export default function InvoiceDetail() {
               </span>
             </div>
             <p className="text-sm text-muted-foreground mt-0.5">{DOCUMENT_TYPE_LABELS[invoice.documentType]}</p>
+            {invoice.status === "anulada" && invoice.cancelReason && (
+              <p className="text-sm text-destructive font-medium mt-1">Anulada: {invoice.cancelReason}</p>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -452,12 +510,12 @@ export default function InvoiceDetail() {
               <Repeat className="h-4 w-4" />Converter em Factura
             </Button>
           )}
-          {(invoice.status === "emitida" || invoice.status === "vencida" || invoice.status === "parcialmente_paga") && (
+          {(invoice.status === "emitida" || invoice.status === "vencida" || invoice.status === "parcialmente_paga") && ["FT", "FR", "FS"].includes(invoice.documentType) && (
             <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700" onClick={() => setPayOpen(true)}>
               <Coins className="h-4 w-4" />Registar Pagamento
             </Button>
           )}
-          {invoice.status === "emitida" && totalAmount === 0 && (
+          {invoice.status === "emitida" && totalAmount === 0 && ["FT", "FR", "FS"].includes(invoice.documentType) && (
             <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700" onClick={() => updateStatus.mutate({ id, status: "paga", paymentDate: new Date() })}>
               <CheckCircle2 className="h-4 w-4" />Marcar como Paga
             </Button>
@@ -476,6 +534,11 @@ export default function InvoiceDetail() {
           {["FT", "FR", "FS"].includes(invoice.documentType) && !["anulada", "rascunho", "expirada"].includes(invoice.status) && (
             <Button variant="outline" size="sm" className="gap-1.5 border-orange-200 text-orange-700 hover:bg-orange-50" onClick={() => navigate(`/documentos/novo?type=NC&ref=${encodeURIComponent(invoice.fullNumber || "")}&clientId=${invoice.clientId || ""}`)}>
               <RotateCcw className="h-4 w-4" />Emitir N. Crédito
+            </Button>
+          )}
+          {invoice.documentType === "FT" && (invoice.status === "emitida" || invoice.status === "vencida" || invoice.status === "parcialmente_paga") && (
+            <Button variant="outline" size="sm" className="gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50" onClick={() => navigate(`/documentos/novo?type=RC&ref=${encodeURIComponent(invoice.fullNumber || "")}&clientId=${invoice.clientId || ""}`)}>
+              <FileText className="h-4 w-4" />Emitir Recibo
             </Button>
           )}
           {(() => {
@@ -807,6 +870,39 @@ export default function InvoiceDetail() {
           </div>
         </div>
 
+        {/* Detalhes do Recebimento (RC/RG) */}
+        {(invoice.documentType === "RC" || invoice.documentType === "RG") && (invoice as any).relatedInvoice && (
+          <div className="px-6 py-4 border-t border-border">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-3">Detalhes do Recebimento</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+              <div>
+                <p className="text-[10px] text-muted-foreground">Documento Liquidado</p>
+                <p className="text-sm font-medium">{(invoice as any).relatedInvoice.fullNumber}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground">Valor Recebido</p>
+                <p className="text-sm font-medium">{formatCurrency(Number(invoice.totalAmount))}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground">Imposto Retido</p>
+                <p className="text-sm font-medium">{formatCurrency(Number(invoice.withholdingTaxAmount || 0))}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground">Valor Pendente</p>
+                <p className="text-sm font-medium">{formatCurrency(Math.max(0, Number((invoice as any).relatedInvoice.totalAmount) - Number((invoice as any).relatedInvoice.paidAmount)))}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground">Meio Pag.</p>
+                <p className="text-sm font-medium capitalize">{invoice.paymentMethod || "transferência"}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground">Data Pag.</p>
+                <p className="text-sm font-medium">{formatDate((invoice as any).operationDate || invoice.issueDate)}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Bens e Serviços */}
         <div className="px-6 py-4 border-t border-border">
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Bens e Serviços</p>
@@ -833,7 +929,8 @@ export default function InvoiceDetail() {
       </div>
 
       {/* Histórico de pagamentos */}
-      <div className="card-elevated">
+      {["FT", "FR", "FS"].includes(invoice.documentType) && (
+        <div className="card-elevated">
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
             <Coins className="h-4 w-4 text-primary" /> Pagamentos
@@ -870,7 +967,8 @@ export default function InvoiceDetail() {
             </tbody>
           </table>
         </div>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -161,7 +161,8 @@ export async function generateInvoicePdf(invoice: InvoiceData, company: CompanyD
   doc.setLineWidth(0.4);
   doc.rect(boxX, 12, 82, 34);
   drawText(copyLabel, boxX + 6, 17, 8, "helvetica", "bold");
-  drawText(DOCUMENT_TYPE_LABELS[invoice.documentType] || "Documento", boxX + 6, 24, 12, "helvetica", "bold");
+  const docTypeLabel = DOCUMENT_TYPE_LABELS[invoice.documentType] || "Documento";
+  drawText(invoice.status === "anulada" ? `${docTypeLabel} (ANULADA)` : docTypeLabel, boxX + 6, 24, 11, "helvetica", "bold");
   drawText(`n.º ${invoice.fullNumber || "Rascunho"}`, boxX + 6, 31, 10, "helvetica", "bold");
   if (invoice.documentType === "PP" || invoice.documentType === "FP" || invoice.documentType === "OR") {
     drawText("(NÃO SERVE DE FACTURA)", boxX + 6, 37, 7, "helvetica", "italic");
@@ -211,11 +212,50 @@ export async function generateInvoicePdf(invoice: InvoiceData, company: CompanyD
   });
   y = (doc as any).lastAutoTable.finalY + 6;
 
-  // ── Observações ──
+  // ── Observações e Motivos ──
   if (invoice.notes) {
     drawText("Observações", mx, y, 9, "helvetica", "bold");
     y += 5;
     y = drawWrapped(invoice.notes, mx, y, contentW, 9) + 4;
+  }
+  if (invoice.cancelReason && (invoice.documentType === "NC" || invoice.status === "anulada")) {
+    drawText("Motivo da Rectificação / Anulação", mx, y, 9, "helvetica", "bold");
+    y += 5;
+    const typeLabel = invoice.documentType === "NC" 
+      ? (invoice.rectificationType === "anulacao_total" ? "Anulação Total" : "Rectificação Parcial") 
+      : "Documento Anulado";
+    y = drawWrapped(`${typeLabel} — ${invoice.cancelReason}`, mx, y, contentW, 9) + 4;
+  }
+
+  // ── Detalhes do Recebimento (Apenas para RC/RG) ──
+  if ((invoice.documentType === "RC" || invoice.documentType === "RG") && (invoice as any).relatedInvoice) {
+    const ri = (invoice as any).relatedInvoice;
+    const valorPendente = Math.max(0, Number(ri.totalAmount) - Number(ri.paidAmount));
+    
+    drawText("Detalhes do Recebimento", mx, y, 9, "helvetica", "bold");
+    y += 5;
+    
+    const rcRows = [
+      ["Documento Liquidado", "Valor Recebido", "Imposto Retido", "Valor Pendente", "Meio de Pagamento", "Data Pag."],
+      [
+        ri.fullNumber || "—",
+        formatKz(Number(invoice.totalAmount)),
+        formatKz(Number(invoice.withholdingTaxAmount || 0)),
+        formatKz(valorPendente),
+        (invoice.paymentMethod || "transferencia").toUpperCase(),
+        formatDate((invoice as any).operationDate || invoice.issueDate)
+      ]
+    ];
+    autoTable(doc, {
+      startY: y,
+      head: [rcRows[0]],
+      body: [rcRows[1]],
+      theme: "grid",
+      styles: { fontSize: 7.5, halign: "center", cellPadding: 2.5, textColor: [30, 30, 30] },
+      headStyles: { fillColor: [240, 240, 240], textColor: [60, 60, 60], fontStyle: "bold" },
+      margin: { left: mx, right: mx },
+    });
+    y = (doc as any).lastAutoTable.finalY + 6;
   }
 
   // ── Linhas do documento — 8 colunas obrigatórias AGT ──
@@ -317,11 +357,26 @@ export async function generateInvoicePdf(invoice: InvoiceData, company: CompanyD
   y = drawWrapped(`Os bens/serviços foram colocados à disposição do adquirente na data e local do documento - ${deliveryLocal}`, mx, y, contentW, 9) + 4;
 
   // ── Dados Bancários ──
-  if (company.bankIban) {
+  if (company.bankIban && invoice.documentType !== "NC") {
     drawText("Dados Bancários", mx, y, 9, "helvetica", "bold");
     y += 5;
     const bankLine = company.bankName ? `${company.bankName} - ` : "";
     y = drawWrapped(`${bankLine}IBAN: ${company.bankIban}`, mx, y, contentW, 9) + 4;
+  }
+
+  // ── Assinatura para Notas de Crédito / Débito (Tomada de Conhecimento) ──
+  if (invoice.documentType === "NC" || invoice.documentType === "ND") {
+    y += 15;
+    if (y > pageH - 45) {
+      doc.addPage();
+      y = 20;
+    }
+    const sigWidth = 70;
+    const sigX = mx + (contentW - sigWidth) / 2;
+    doc.setDrawColor(100, 100, 100);
+    doc.line(sigX, y, sigX + sigWidth, y);
+    drawText("Tomada de conhecimento do adquirente (Assinatura / Carimbo)", 105, y + 4, 7.5, "helvetica", "italic", { align: "center" });
+    y += 10;
   }
 
   // ── Rodapé em todas as páginas ──

@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { formatCurrency, DOCUMENT_TYPE_LABELS, PAYMENT_METHODS, VAT_RATES } from "@/lib/utils";
 import { calculateLineValues, calculateInvoiceTotals } from "@shared/fiscal-math";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Plus, Trash2, Calculator, FileText } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Calculator, FileText, Search, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,10 +35,13 @@ export default function NewInvoice() {
   const [paymentMethod, setPaymentMethod] = useState("transferencia");
   const [notes, setNotes] = useState("");
   const [relatedInvoiceNumber, setRelatedInvoiceNumber] = useState("");
+  const [relatedInvoiceId, setRelatedInvoiceId] = useState<number | undefined>();
   const [cancelReason, setCancelReason] = useState("");
   const [rectificationType, setRectificationType] = useState<"anulacao_total" | "rectificacao_parcial">("anulacao_total");
   const [applyWithholdingTax, setApplyWithholdingTax] = useState(false);
   const [lines, setLines] = useState<LineItem[]>([{ description: "", quantity: 1, unitPrice: 0, vatRate: 14, discount: 0 }]);
+  const [isSearchingInvoice, setIsSearchingInvoice] = useState(false);
+  const utils = trpc.useUtils();
 
   const todayISO = new Date().toISOString().substring(0, 10);
 
@@ -80,6 +83,38 @@ export default function NewInvoice() {
     },
     onError: (e) => toast.error(e.message),
   });
+
+  async function handleSearchOriginalInvoice() {
+    if (!relatedInvoiceNumber) {
+      toast.error("Insira o número da factura de origem (Ex: FT 2026/1)");
+      return;
+    }
+    setIsSearchingInvoice(true);
+    try {
+      const inv = await utils.invoices.getByNumber.fetch({ fullNumber: relatedInvoiceNumber });
+      setRelatedInvoiceId(inv.id);
+      if (inv.clientId) setClientId(inv.clientId);
+      if (inv.clientRef) setClientRef(inv.clientRef);
+      if (inv.items && inv.items.length > 0) {
+        setLines(inv.items.map((item: any) => ({
+          productId: item.productId || undefined,
+          productCode: item.productCode || undefined,
+          type: item.type || undefined,
+          description: item.description,
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+          vatRate: Number(item.vatRate),
+          discount: Number(item.discountPercent || 0),
+          vatExemptReasonCode: item.vatExemptReasonCode || undefined,
+        })));
+      }
+      toast.success("Factura original carregada com sucesso!");
+    } catch (e: any) {
+      toast.error(e.message || "Factura não encontrada no sistema.");
+    } finally {
+      setIsSearchingInvoice(false);
+    }
+  }
 
   function addLine() {
     setLines(l => [...l, { description: "", quantity: 1, unitPrice: 0, vatRate: 14, discount: 0 }]);
@@ -140,6 +175,7 @@ export default function NewInvoice() {
       dueDate: dueDate ? new Date(dueDate) : undefined,
       paymentMethod: paymentMethod as any,
       notes,
+      relatedInvoiceId: ["NC", "ND", "RC", "RG"].includes(documentType) && relatedInvoiceId ? relatedInvoiceId : undefined,
       relatedInvoiceNumber: ["NC", "ND", "RC", "RG"].includes(documentType) && relatedInvoiceNumber ? relatedInvoiceNumber : undefined,
       cancelReason: documentType === "NC" ? cancelReason : undefined,
       rectificationType: documentType === "NC" ? rectificationType : undefined,
@@ -240,7 +276,13 @@ export default function NewInvoice() {
             <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="col-span-2 space-y-1.5">
                 <Label>Documento de Origem (Nº da Fatura) *</Label>
-                <Input type="text" value={relatedInvoiceNumber} onChange={e => setRelatedInvoiceNumber(e.target.value)} placeholder="Ex: FT 2026/1" required={["NC", "ND"].includes(documentType)} />
+                <div className="flex gap-2">
+                  <Input type="text" value={relatedInvoiceNumber} onChange={e => setRelatedInvoiceNumber(e.target.value)} placeholder="Ex: FT 2026/1" required={["NC", "ND"].includes(documentType)} className="flex-1" />
+                  <Button type="button" variant="secondary" onClick={handleSearchOriginalInvoice} disabled={isSearchingInvoice || !relatedInvoiceNumber}>
+                    {isSearchingInvoice ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
+                    Pesquisar
+                  </Button>
+                </div>
                 <p className="text-xs text-muted-foreground mt-1">Obrigatório por lei ao emitir Nota de Crédito/Débito.</p>
               </div>
               
@@ -308,7 +350,7 @@ export default function NewInvoice() {
                   <th className="text-right text-xs font-semibold text-muted-foreground px-2 py-2.5 w-24">Qtd.</th>
                   <th className="text-right text-xs font-semibold text-muted-foreground px-2 py-2.5 w-40">Preço Unit.</th>
                   <th className="text-right text-xs font-semibold text-muted-foreground px-2 py-2.5 w-20">Desc. %</th>
-                  {documentType !== "ND" && <th className="text-center text-xs font-semibold text-muted-foreground px-2 py-2.5 w-24">IVA %</th>}
+                  {documentType !== "ND" && <th className="text-left text-xs font-semibold text-muted-foreground px-2 py-2.5 w-32">IVA %</th>}
                   {documentType !== "ND" && <th className="text-left text-xs font-semibold text-muted-foreground px-2 py-2.5 w-48">Motivo de Isenção</th>}
                   <th className="text-right text-xs font-semibold text-muted-foreground px-4 py-2.5 w-56">Total</th>
                   <th className="w-10"></th>
@@ -362,7 +404,7 @@ export default function NewInvoice() {
                         {documentType !== "ND" && (
                           <td className="px-2 py-2">
                             <Select value={String(line.vatRate)} onValueChange={v => updateLine(i, "vatRate", Number(v))}>
-                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectTrigger className="h-8 text-xs w-full overflow-hidden [&>span]:truncate text-left"><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 {VAT_RATES.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
                               </SelectContent>
@@ -372,7 +414,7 @@ export default function NewInvoice() {
                         {documentType !== "ND" && (
                           <td className="px-2 py-2">
                             <Select disabled={line.vatRate !== 0} value={line.vatRate === 0 ? (line.vatExemptReasonCode || "") : ""} onValueChange={v => updateLine(i, "vatExemptReasonCode", v)}>
-                              <SelectTrigger className={cn("h-8 text-xs", line.vatRate === 0 && !line.vatExemptReasonCode && "border-amber-400 bg-amber-50")}>
+                              <SelectTrigger className={cn("h-8 text-xs w-full overflow-hidden [&>span]:truncate text-left", line.vatRate === 0 && !line.vatExemptReasonCode && "border-amber-400 bg-amber-50")}>
                                 <SelectValue placeholder={line.vatRate === 0 ? "Seleccione..." : "Não aplicável"} />
                               </SelectTrigger>
                               <SelectContent>

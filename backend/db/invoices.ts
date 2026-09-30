@@ -266,3 +266,5 @@ export async function deleteInvoice(tenantId: number, invoiceId: number) {
   await db.delete(invoices).where(and(eq(invoices.id, invoiceId), eq(invoices.tenantId, tenantId)));
   return invoice;
 }
+
+export async function getInvoiceByNumber(tenantId: number, fullNumber: string) { const db = await getDb(); if (!db) return null; const [inv] = await db.select().from(invoices).where(and(eq(invoices.tenantId, tenantId), eq(invoices.fullNumber, fullNumber))).limit(1); return inv || null; }

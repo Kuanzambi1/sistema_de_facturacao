@@ -764,7 +764,22 @@ export const appRouter = router({
         const items = await db.getInvoiceItems(tenantId, input.id);
         const payments = await db.listPayments(tenantId, input.id);
         const ncCount = await db.countCreditNotesForInvoice(tenantId, invoice.id, invoice.fullNumber ?? null);
-        return { ...invoice, items, payments, ncCount };
+        let relatedInvoice = null;
+        if (invoice.relatedInvoiceId) {
+          relatedInvoice = await db.getInvoiceById(tenantId, invoice.relatedInvoiceId);
+        }
+        return { ...invoice, items, payments, ncCount, relatedInvoice };
+      }),
+
+    getByNumber: protectedProcedure
+      .input(z.object({ fullNumber: z.string() }))
+      .query(async ({ input, ctx }) => {
+        const tenantId = requireTenant(ctx.user);
+        // We cast to any here to avoid TS error if db.getInvoiceByNumber is not recognized by TS yet due to build cache
+        const invoice = await (db as any).getInvoiceByNumber(tenantId, input.fullNumber);
+        if (!invoice) throw new TRPCError({ code: "NOT_FOUND" });
+        const items = await db.getInvoiceItems(tenantId, invoice.id);
+        return { ...invoice, items };
       }),
 
     create: protectedProcedure
@@ -964,6 +979,40 @@ export const appRouter = router({
             reference: fullNumber,
             createdBy: ctx.user.id,
           });
+          
+          if (input.documentType === "NC" && input.rectificationType === "anulacao_total" && input.relatedInvoiceId) {
+            await db.updateInvoiceStatus(tenantId, input.relatedInvoiceId, "anulada", {
+              cancelReason: input.cancelReason ?? null,
+            });
+          }
+
+          if ((input.documentType === "RC" || input.documentType === "RG") && input.relatedInvoiceId) {
+            await db.createPayment(tenantId, {
+              invoiceId: input.relatedInvoiceId,
+              amount: totals.totalAmount,
+              paymentDate: input.operationDate ?? input.issueDate,
+              method: input.paymentMethod ?? "transferencia",
+              reference: invoice.fullNumber ?? undefined,
+              notes: "Pagamento registado via Recibo " + invoice.fullNumber,
+              createdBy: ctx.user.id,
+            });
+            await db.refreshInvoicePaymentStatus(tenantId, input.relatedInvoiceId);
+          }
+
+          if (input.documentType === "FR" || input.documentType === "FS") {
+            const label = input.documentType === "FR" ? "Factura-Recibo" : "Fatura Simplificada";
+            await db.createPayment(tenantId, {
+              invoiceId: invoice.id,
+              amount: totals.totalAmount,
+              paymentDate: input.operationDate ?? input.issueDate,
+              method: input.paymentMethod ?? "numerario",
+              reference: invoice.fullNumber ?? undefined,
+              notes: "Pagamento imediato de " + label,
+              createdBy: ctx.user.id,
+            });
+            await db.refreshInvoicePaymentStatus(tenantId, invoice.id);
+          }
+          
           await agtSubmitInvoice(tenantId, invoice.id).catch((e) => console.error("[AGT] submit failed:", e));
           await sendInvoiceEmail(ctx.req, invoice, tenantId);
         }
