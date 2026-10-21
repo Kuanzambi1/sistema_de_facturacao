@@ -278,8 +278,8 @@ export async function getAdvancedData(tenantId: number, dateFrom: Date, dateTo: 
   const query = sql`
     SELECT
       i.id, i.fullNumber, i.documentType, i.issueDate, i.status, i.clientId, i.clientName, i.clientNif,
-      i.subtotal as invoiceSubtotal, i.vatAmount as invoiceVat, i.discountAmount as invoiceDiscount, i.totalAmount as invoiceTotal,
-      ii.productId, ii.productCode, ii.description, ii.quantity, ii.unitPrice, ii.vatRate, ii.subtotal as itemSubtotal, ii.vatAmount as itemVat, ii.totalAmount as itemTotal
+      i.subtotal as invoiceSubtotal, i.vatAmount as invoiceVat, i.discountAmount as invoiceDiscount, i.totalAmount as invoiceTotal, i.withholdingTaxAmount as invoiceWithholdingTaxAmount,
+      ii.productId, ii.productCode, ii.description, ii.quantity, ii.unitPrice, ii.vatRate, ii.discountPercent, ii.subtotal as itemSubtotal, ii.vatAmount as itemVat, ii.total as itemTotal
     FROM invoices i
     LEFT JOIN invoice_items ii ON ii.invoiceId = i.id
     WHERE i.tenantId = ${tenantId}
@@ -295,9 +295,11 @@ export async function getAdvancedData(tenantId: number, dateFrom: Date, dateTo: 
     invoiceVat: Number(r.invoiceVat),
     invoiceDiscount: Number(r.invoiceDiscount),
     invoiceTotal: Number(r.invoiceTotal),
+    invoiceWithholdingTaxAmount: Number(r.invoiceWithholdingTaxAmount || 0),
     quantity: Number(r.quantity || 0),
     unitPrice: Number(r.unitPrice || 0),
     vatRate: Number(r.vatRate || 0),
+    discountPercent: Number(r.discountPercent || 0),
     itemSubtotal: Number(r.itemSubtotal || 0),
     itemVat: Number(r.itemVat || 0),
     itemTotal: Number(r.itemTotal || 0),

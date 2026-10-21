@@ -10,6 +10,7 @@ import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import cors from "cors";
+import { runAutoMigrations } from "../db/auto-migrate";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -35,33 +36,99 @@ async function startServer() {
   const server = createServer(app);
 
   // Security headers
+  const isProduction = process.env.NODE_ENV === "production";
   app.use(helmet({
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: isProduction ? {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "blob:"],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+      },
+    } : false,
     crossOriginEmbedderPolicy: false,
   }));
 
   // CORS middleware for frontend communication
-  app.use(cors({
-    origin: process.env.VITE_FRONTEND_URL || "http://localhost:5173",
-    credentials: true,
-  }));
+  const rawFrontendUrl = process.env.VITE_FRONTEND_URL || "https://facturas.kapital360.ao";
+  const configuredOrigins = rawFrontendUrl
+    .split(",")
+    .map(u => u.trim().replace(/\/+$/, ""))
+    .filter(Boolean);
 
-  // Rate limiting — 100 requests per minute per IP
+  const allowedOrigins = Array.from(new Set([
+    "https://facturas.kapital360.ao",
+    "http://facturas.kapital360.ao",
+    "https://www.facturas.kapital360.ao",
+    "https://backfacturas.kapital360.ao",
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://localhost:4173",
+    ...configuredOrigins,
+  ]));
+
+  const corsOptions: cors.CorsOptions = {
+    origin: (origin, callback) => {
+      // Allow non-browser requests (curl, server-to-server, health checks)
+      if (!origin) return callback(null, true);
+
+      const cleanOrigin = origin.replace(/\/+$/, "");
+      const isAllowed =
+        allowedOrigins.includes(cleanOrigin) ||
+        cleanOrigin.endsWith(".kapital360.ao") ||
+        cleanOrigin === "https://kapital360.ao";
+
+      if (isAllowed) {
+        return callback(null, true);
+      }
+      console.warn(`[CORS] Blocked request from origin: ${origin}`);
+      callback(new Error(`Not allowed by CORS: ${origin}`));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Cookie", "x-trpc-source", "x-requested-with"],
+    exposedHeaders: ["set-cookie"],
+  };
+
+  app.use(cors(corsOptions));
+  app.options("*", cors(corsOptions));
+
+  // Health and root status endpoints
+  app.get("/", (_req, res) => {
+    res.json({
+      status: "ok",
+      service: "Sistema de Facturação API",
+      environment: process.env.NODE_ENV || "development",
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", uptime: process.uptime() });
+  });
+
+  // Rate limiting — 100 requests per minute per IP (skips OPTIONS preflight)
   const limiter = rateLimit({
     windowMs: 60 * 1000,
     max: 100,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => req.method === "OPTIONS",
     message: { error: "Demasiados pedidos. Tente novamente mais tarde." },
   });
   app.use("/api", limiter);
 
-  // Stricter rate limit for auth endpoints — 10 per minute per IP
+  // Stricter rate limit for auth endpoints — 10 per minute per IP (skips OPTIONS preflight)
   const authLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 10,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => req.method === "OPTIONS",
     message: { error: "Demasiadas tentativas de login. Aguarde um momento." },
   });
   app.use("/api/trpc/auth.login", authLimiter);
@@ -80,18 +147,21 @@ async function startServer() {
       createContext,
     })
   );
-  // removed vite integration since front and back are separated
 
-  const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
+  // Auto-migrate schema to ensure all columns exist
+  await runAutoMigrations();
 
-  if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+  const rawPort = process.env.PORT;
+  if (rawPort) {
+    server.listen(rawPort, () => {
+      console.log(`Server running on port/socket: ${rawPort}`);
+    });
+  } else {
+    const port = await findAvailablePort(3000);
+    server.listen(port, () => {
+      console.log(`Server running on http://localhost:${port}/`);
+    });
   }
-
-  server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
-  });
 }
 
 startServer().catch(console.error);

@@ -12,6 +12,7 @@
  */
 import { nanoid } from "nanoid";
 import type { Company } from "../drizzle/schema";
+import { decryptString } from "../_core/crypto";
 import * as db from "../db";
 
 export type AGTStatus = "sucesso" | "erro" | "pendente";
@@ -96,6 +97,7 @@ class LiveAGTClient implements AGTClient {
         headers: {
           "content-type": "application/json",
           "x-agt-user": company.agtPortalUser ?? "",
+          "x-agt-password": decryptString(company.agtPortalPassword ?? ""),
           "x-agt-action": action,
         },
         body: JSON.stringify(payload),

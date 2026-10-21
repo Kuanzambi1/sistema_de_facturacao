@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { decryptString } from "./_core/crypto";
 
 // ─── Tipos de Documentos Fiscais ──────────────────────────────────────────────
 export const DOCUMENT_TYPES: Record<string, string> = {
@@ -93,8 +94,8 @@ export function generateDocumentHash(params: {
     params.previousHash,
   ].join(";");
   
-  const pKey = params.privateKey || getTestPrivateKey();
-  const sign = crypto.createSign("SHA1");
+  const pKey = params.privateKey ? decryptString(params.privateKey) : getTestPrivateKey();
+  const sign = crypto.createSign("SHA256");
   sign.update(data, "utf8");
   return sign.sign(pKey, "base64");
 }

@@ -477,16 +477,16 @@ export default function InvoiceDetail() {
   );
 
   return (
-    <div ref={invoiceRef} className="p-6 space-y-5 animate-fade-in-up max-w-4xl mx-auto">
+    <div ref={invoiceRef} className="p-6 space-y-5 animate-fade-in-up max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={() => navigate("/documentos")}>
             <ArrowLeft className="h-4 w-4" />Voltar
           </Button>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold text-foreground truncate">{invoice.fullNumber}</h1>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-semibold text-foreground">{invoice.fullNumber}</h1>
               <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0", STATUS_COLORS[invoice.status])}>
                 {STATUS_LABELS[invoice.status]}
               </span>

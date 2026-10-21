@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { Printer } from "lucide-react";
+import { Printer, Download } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,6 +58,33 @@ export default function Reports() {
     { supplierId: Number(selectedSupplierId) },
     { enabled: !!selectedSupplierId }
   );
+
+  const exportClientStatement = trpc.reports.exportClientStatementPdf.useMutation();
+  const exportSupplierStatement = trpc.reports.exportSupplierStatementPdf.useMutation();
+
+  const handleExportClientStatement = async () => {
+    try {
+      const res = await exportClientStatement.mutateAsync({ clientId: Number(selectedClientId) });
+      const link = document.createElement("a");
+      link.href = `data:application/pdf;base64,${res.base64}`;
+      link.download = `ContaCorrente_Cliente_${clientStatement?.client?.name?.replace(/\s+/g, "_") ?? "Export"}.pdf`;
+      link.click();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleExportSupplierStatement = async () => {
+    try {
+      const res = await exportSupplierStatement.mutateAsync({ supplierId: Number(selectedSupplierId) });
+      const link = document.createElement("a");
+      link.href = `data:application/pdf;base64,${res.base64}`;
+      link.download = `ContaCorrente_Fornecedor_${supplierStatement?.supplier?.name?.replace(/\s+/g, "_") ?? "Export"}.pdf`;
+      link.click();
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const chartData = MONTHS.map((month, i) => {
     const found = monthly?.find((m) => m.month === i + 1);
@@ -250,9 +277,14 @@ export default function Reports() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-foreground">Conta Corrente de Clientes</h2>
               {clientStatement && clientStatement.client && (
-                <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()}>
-                  <Printer className="h-4 w-4" /> Imprimir
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()}>
+                    <Printer className="h-4 w-4" /> Imprimir
+                  </Button>
+                  <Button variant="default" size="sm" className="gap-2" onClick={handleExportClientStatement} disabled={exportClientStatement.isPending}>
+                    <Download className="h-4 w-4" /> Exportar PDF
+                  </Button>
+                </div>
               )}
             </div>
             <div className="space-y-1 mb-4">
@@ -398,9 +430,14 @@ export default function Reports() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-foreground">Conta Corrente de Fornecedores</h2>
               {supplierStatement && supplierStatement.supplier && (
-                <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()}>
-                  <Printer className="h-4 w-4" /> Imprimir
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()}>
+                    <Printer className="h-4 w-4" /> Imprimir
+                  </Button>
+                  <Button variant="default" size="sm" className="gap-2" onClick={handleExportSupplierStatement} disabled={exportSupplierStatement.isPending}>
+                    <Download className="h-4 w-4" /> Exportar PDF
+                  </Button>
+                </div>
               )}
             </div>
             <div className="space-y-1 mb-4">

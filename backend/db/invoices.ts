@@ -261,6 +261,10 @@ export async function deleteInvoice(tenantId: number, invoiceId: number) {
   if (!db) return null;
   const invoice = await getInvoiceById(tenantId, invoiceId);
   if (!invoice) return null;
+  // Defense-in-depth: never delete issued fiscal documents at the DB layer
+  if (invoice.status !== "rascunho") {
+    throw new Error("Integridade fiscal: documentos emitidos não podem ser eliminados.");
+  }
   await db.delete(payments).where(and(eq(payments.tenantId, tenantId), eq(payments.invoiceId, invoiceId)));
   await db.delete(invoiceItems).where(and(eq(invoiceItems.tenantId, tenantId), eq(invoiceItems.invoiceId, invoiceId)));
   await db.delete(invoices).where(and(eq(invoices.id, invoiceId), eq(invoices.tenantId, tenantId)));

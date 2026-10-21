@@ -2,11 +2,12 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
-import { COOKIE_NAME, NOT_TENANT_ERR_MSG, PLANS, type PlanId } from "./shared/const";
+import { COOKIE_NAME, NOT_TENANT_ERR_MSG, PLANS, SESSION_MAX_AGE_MS, type PlanId } from "./shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { sdk } from "./_core/sdk";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { encryptString } from "./_core/crypto";
 import * as db from "./db";
 import {
   DOCUMENT_TYPES, VAT_RATES, ANGOLA_PROVINCES, generateATCUD,
@@ -17,6 +18,7 @@ import {
 import { agtRegisterSeries, agtSubmitInvoice, agtQueryInvoice, agtSubmitSAFT } from "./agt/client";
 import { sendEmail, invoiceEmailHtml, reminderEmailHtml } from "./_core/email";
 import { generateInvoicePdf } from "./pdf";
+import { generateLedgerPdf } from "./pdf-ledger";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function requireTenant(user: { tenantId?: number | null }): number {
@@ -32,8 +34,16 @@ function portalUrlFor(req: any, token: string): string {
   return `${protocol}://${host}/p/${token}`;
 }
 
+/** Mask email for safe logging: `user@example.com` → `u***@example.com` */
+function maskEmail(email?: string | null): string {
+  if (!email) return "(vazio)";
+  const [local, domain] = email.split("@");
+  if (!domain) return "***";
+  return `${local[0]}***@${domain}`;
+}
+
 async function sendInvoiceEmail(req: any, invoice: any, tenantId: number) {
-  console.log(`[Email] sendInvoiceEmail() — invoiceId=${invoice.id} clientEmail=${invoice.clientEmail ?? "(vazio)"}`);
+  console.log(`[Email] sendInvoiceEmail() — invoiceId=${invoice.id} clientEmail=${maskEmail(invoice.clientEmail)}`);
   if (!invoice?.clientEmail) {
     console.warn(`[Email] Factura ${invoice.fullNumber} sem email do cliente — email ignorado.`);
     return;
@@ -54,7 +64,7 @@ async function sendInvoiceEmail(req: any, invoice: any, tenantId: number) {
     console.error(`[Email] Falha ao gerar PDF para factura ${invoice.id}:`, e);
   }
 
-  console.log(`[Email] A enviar factura ${invoice.fullNumber} para ${invoice.clientEmail}...`);
+  console.log(`[Email] A enviar factura ${invoice.fullNumber} para ${maskEmail(invoice.clientEmail)}...`);
   await sendEmail({
     to: invoice.clientEmail,
     subject: `Factura ${invoice.fullNumber} emitida`,
@@ -203,6 +213,9 @@ async function runRecurringRule(tenantId: number, ruleId: number, userId: number
   return invoice;
 }
 
+// ─── Brute-force protection map (Memory-only for simplicity, use Redis in production cluster)
+const loginAttempts = new Map<string, { count: number, lockUntil: number }>();
+
 // ─── Router Principal ─────────────────────────────────────────────────────────
 export const appRouter = router({
   system: systemRouter,
@@ -238,20 +251,40 @@ export const appRouter = router({
     login: publicProcedure
       .input(z.object({ email: z.string().email(), password: z.string().min(8).regex(/[A-Z]/, "Deve conter pelo menos uma maiúscula").regex(/[0-9]/, "Deve conter pelo menos um número") }))
       .mutation(async ({ input, ctx }) => {
+        const now = Date.now();
+        const emailKey = input.email.toLowerCase();
+        const attempt = loginAttempts.get(emailKey) ?? { count: 0, lockUntil: 0 };
+
+        if (attempt.lockUntil > now) {
+          const waitMinutes = Math.ceil((attempt.lockUntil - now) / 60000);
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `Conta bloqueada temporariamente. Tente novamente em ${waitMinutes} minutos.` });
+        }
+
         const user = await db.getUserByEmail(input.email);
         if (!user || !user.passwordHash) {
+          attempt.count += 1;
+          if (attempt.count >= 5) attempt.lockUntil = now + 15 * 60 * 1000;
+          loginAttempts.set(emailKey, attempt);
           throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
         }
+        
         const isValid = await bcrypt.compare(input.password, user.passwordHash);
         if (!isValid) {
+          attempt.count += 1;
+          if (attempt.count >= 5) attempt.lockUntil = now + 15 * 60 * 1000;
+          loginAttempts.set(emailKey, attempt);
           throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
         }
+
+        // Reset attempts on successful login
+        loginAttempts.delete(emailKey);
 
         const sessionToken = await sdk.createSessionToken(user.openId, { name: user.name ?? "" });
         const cookieOptions = getSessionCookieOptions(ctx.req);
-        ctx.res.cookie(COOKIE_NAME, sessionToken, cookieOptions);
+        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: SESSION_MAX_AGE_MS });
 
-        return { success: true, user };
+        const { passwordHash: _ph, ...safeUser } = user as any;
+        return { success: true, user: safeUser };
       }),
     register: publicProcedure
       .input(z.object({ name: z.string().min(1), email: z.string().email(), password: z.string().min(8).regex(/[A-Z]/, "Deve conter pelo menos uma maiúscula").regex(/[0-9]/, "Deve conter pelo menos um número"), nif: z.string().regex(/^\d{10}$/, "NIF da empresa deve ter exactamente 10 dígitos numéricos"), phone: z.string().min(1), terms: z.boolean() }))
@@ -286,9 +319,10 @@ export const appRouter = router({
 
         const sessionToken = await sdk.createSessionToken(openId, { name: input.name });
         const cookieOptions = getSessionCookieOptions(ctx.req);
-        ctx.res.cookie(COOKIE_NAME, sessionToken, cookieOptions);
+        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: SESSION_MAX_AGE_MS });
 
-        return { success: true, user };
+        const { passwordHash: _ph2, ...safeUser } = user as any;
+        return { success: true, user: safeUser };
       }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
@@ -333,9 +367,13 @@ export const appRouter = router({
   // ─── Empresa ────────────────────────────────────────────────────────────────
   company: router({
     get: protectedProcedure.query(async ({ ctx }) => {
-      return db.getCompany(requireTenant(ctx.user));
+      const company = await db.getCompany(requireTenant(ctx.user));
+      if (!company) return null;
+      // Strip sensitive fields — never send private keys or credentials to the frontend
+      const { rsaPrivateKey, rsaPublicKey, digitalSignatureKey, agtPortalPassword, ...safeCompany } = company as any;
+      return safeCompany;
     }),
-    upsert: protectedProcedure
+    upsert: adminProcedure
       .input(z.object({
         name: z.string().min(1),
         nif: z.string().regex(/^\d{10}$/, "NIF da empresa deve ter exactamente 10 dígitos numéricos"),
@@ -359,16 +397,29 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         const tenantId = requireTenant(ctx.user);
-        const updated = await db.upsertCompany(tenantId, input);
+        const dataToSave = { ...input };
+        if (dataToSave.agtPortalPassword) {
+          dataToSave.agtPortalPassword = encryptString(dataToSave.agtPortalPassword);
+        }
+        const updated = await db.upsertCompany(tenantId, dataToSave);
         await db.addAuditLog(tenantId, { userId: ctx.user.id, userName: ctx.user.name ?? null, action: "actualizar", entityType: "company", entityId: updated?.id ?? null, entityLabel: input.name });
         return updated;
       }),
 
-    uploadLogo: protectedProcedure
+    uploadLogo: adminProcedure
       .input(z.object({ fileName: z.string(), fileBase64: z.string() }))
       .mutation(async ({ input, ctx }) => {
         const tenantId = requireTenant(ctx.user);
-        const ext = input.fileName.split(".").pop()?.toLowerCase() ?? "png";
+        const ext = input.fileName.split(".").pop()?.toLowerCase() ?? "";
+        const allowedExtensions = ["png", "jpg", "jpeg", "svg", "webp"];
+        if (!allowedExtensions.includes(ext)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `Formato de imagem não suportado: .${ext}. Use: ${allowedExtensions.join(", ")}.` });
+        }
+        // Validate max size (base64 ≈ 4/3 * original size; limit to ~2MB original)
+        const maxBase64Length = Math.ceil(2 * 1024 * 1024 * (4 / 3));
+        if (input.fileBase64.length > maxBase64Length) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Logo demasiado grande. Tamanho máximo: 2MB." });
+        }
         const mime = ext === "jpg" ? "jpeg" : ext;
         const dataUrl = `data:image/${mime};base64,${input.fileBase64}`;
         await db.upsertCompany(tenantId, { logoUrl: dataUrl });
@@ -380,13 +431,13 @@ export const appRouter = router({
       const crypto = await import("crypto");
       
       const { publicKey, privateKey } = crypto.generateKeyPairSync("rsa", {
-        modulusLength: 1024,
+        modulusLength: 2048,
         publicKeyEncoding: { type: "spki", format: "pem" },
         privateKeyEncoding: { type: "pkcs8", format: "pem" },
       });
 
       await db.upsertCompany(tenantId, { 
-        rsaPrivateKey: privateKey, 
+        rsaPrivateKey: encryptString(privateKey), 
         rsaPublicKey: publicKey 
       });
       await db.addAuditLog(tenantId, { userId: ctx.user.id, userName: ctx.user.name ?? null, action: "gerar_chaves_rsa", entityType: "company", entityLabel: "Chaves RSA Geradas" });
@@ -1416,14 +1467,18 @@ export const appRouter = router({
   users: router({
     list: adminProcedure
       .input(z.object({ page: z.number().default(1), limit: z.number().default(50) }))
-      .query(async ({ input, ctx }) => db.listUsers(requireTenant(ctx.user), input.page, input.limit)),
+      .query(async ({ input, ctx }) => {
+        const result = await db.listUsers(requireTenant(ctx.user), input.page, input.limit);
+        return { ...result, data: result.data.map(({ passwordHash, ...u }: any) => u) };
+      }),
 
     get: adminProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input, ctx }) => {
         const user = await db.getUserById(requireTenant(ctx.user), input.id);
         if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-        return user;
+        const { passwordHash, ...safeUser } = user as any;
+        return safeUser;
       }),
 
     updateRole: adminProcedure
@@ -1550,9 +1605,102 @@ export const appRouter = router({
       .input(z.object({ supplierId: z.number() }))
       .query(async ({ input, ctx }) => db.getSupplierStatement(requireTenant(ctx.user), input.supplierId)),
 
+    exportClientStatementPdf: protectedProcedure
+      .input(z.object({ clientId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const tenantId = requireTenant(ctx.user);
+        const data = await db.getClientStatement(tenantId, input.clientId);
+        if (!data.client) throw new TRPCError({ code: "NOT_FOUND", message: "Cliente não encontrado" });
+        const company = await db.getCompany(tenantId);
+        
+        let runningBalance = 0;
+        const movements: any[] = [];
+        
+        // Combine invoices (debit for client) and payments (credit for client)
+        data.invoices.forEach(inv => {
+          movements.push({
+            date: inv.issueDate,
+            document: `Factura ${inv.fullNumber}`,
+            debit: Number(inv.totalAmount),
+            credit: 0,
+            timestamp: new Date(inv.issueDate ?? "").getTime(),
+          });
+        });
+        
+        data.payments.forEach(pay => {
+          movements.push({
+            date: pay.paymentDate,
+            document: `Recibo / Pagamento`,
+            debit: 0,
+            credit: Number(pay.amount),
+            timestamp: new Date(pay.paymentDate ?? "").getTime(),
+          });
+        });
+        
+        movements.sort((a, b) => a.timestamp - b.timestamp);
+        movements.forEach(m => {
+          runningBalance += (m.debit - m.credit);
+          m.balance = runningBalance;
+        });
+
+        const pdfBuffer = await generateLedgerPdf(company ?? {}, data.client.name, data.client.nif, "Cliente", {
+          totalInvoiced: data.totalInvoiced,
+          totalPaid: data.totalPaid,
+          balance: data.balance,
+          movements,
+        });
+
+        return { base64: pdfBuffer.toString("base64") };
+      }),
+
+    exportSupplierStatementPdf: protectedProcedure
+      .input(z.object({ supplierId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const tenantId = requireTenant(ctx.user);
+        const data = await db.getSupplierStatement(tenantId, input.supplierId);
+        if (!data.supplier) throw new TRPCError({ code: "NOT_FOUND", message: "Fornecedor não encontrado" });
+        const company = await db.getCompany(tenantId);
+        
+        let runningBalance = 0;
+        const movements: any[] = [];
+        
+        data.movements.forEach(mov => {
+          if (mov.type === "entrada") {
+            movements.push({
+              date: mov.date,
+              document: `Compra ${mov.id}`,
+              debit: 0,
+              credit: Number(mov.totalCost), // Fornecedor: we owe them (credit balance increases)
+              timestamp: new Date(mov.date ?? "").getTime(),
+            });
+          }
+        });
+        
+        // Note: Fornecedor might not have payments implemented yet in this getSupplierStatement,
+        // but we'll map movements to fit the ledger PDF. For a supplier, credit is purchases, debit is our payments.
+        movements.sort((a, b) => a.timestamp - b.timestamp);
+        movements.forEach(m => {
+          runningBalance += (m.credit - m.debit);
+          m.balance = runningBalance;
+        });
+
+        const pdfBuffer = await generateLedgerPdf(company ?? {}, data.supplier.name, data.supplier.nif, "Fornecedor", {
+          totalInvoiced: data.totalCost,
+          totalPaid: 0, // Placeholder
+          balance: runningBalance,
+          movements,
+        });
+
+        return { base64: pdfBuffer.toString("base64") };
+      }),
+
     advancedData: protectedProcedure
       .input(z.object({ dateFrom: z.date(), dateTo: z.date() }))
-      .query(async ({ input, ctx }) => db.getAdvancedData(requireTenant(ctx.user), input.dateFrom, input.dateTo)),
+      .query(async ({ input, ctx }) => {
+        const endOfDay = new Date(input.dateTo);
+        endOfDay.setHours(23, 59, 59, 999);
+        return db.getAdvancedData(requireTenant(ctx.user), input.dateFrom, endOfDay);
+      }),
 
     exportSaft: adminProcedure
       .input(z.object({ dateFrom: z.string(), dateTo: z.string() }))
