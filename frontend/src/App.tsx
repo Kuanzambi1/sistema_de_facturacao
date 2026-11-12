@@ -21,6 +21,10 @@ import Audit from "./pages/Audit";
 import Portal from "./pages/Portal";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
+import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
+import CookiesPage from "./pages/Cookies";
+import CookieConsent from "./components/CookieConsent";
 import { AppLayout } from "./components/AppLayout";
 import { useAuth } from "./_core/hooks/useAuth";
 import { Loader2 } from "lucide-react";
@@ -75,6 +79,12 @@ function App() {
             <Route path="/" component={Landing} />
             <Route path="/login" component={Login} />
             <Route path="/p/:token" component={Portal} />
+            <Route path="/termos" component={Terms} />
+            <Route path="/termos-e-condicoes" component={Terms} />
+            <Route path="/privacidade" component={Privacy} />
+            <Route path="/politica-de-privacidade" component={Privacy} />
+            <Route path="/cookies" component={CookiesPage} />
+            <Route path="/politica-de-cookies" component={CookiesPage} />
             <Route>
               <AuthGuard>
                 <AppLayout>
@@ -83,6 +93,7 @@ function App() {
               </AuthGuard>
             </Route>
           </Switch>
+          <CookieConsent />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

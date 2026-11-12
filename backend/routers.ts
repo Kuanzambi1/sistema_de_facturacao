@@ -15,7 +15,14 @@ import {
   calculateLineValues, calculateInvoiceTotals, generateSAFTXML,
   generateSAFTInventoryXML, generateVATDeclarationCSV,
 } from "./fiscal";
-import { agtRegisterSeries, agtSubmitInvoice, agtQueryInvoice, agtSubmitSAFT } from "./agt/client";
+import {
+  agtRegisterSeries,
+  agtSubmitInvoice,
+  agtGetSubmissionStatus,
+  agtQueryInvoice,
+  agtListInvoices,
+  agtSubmitSAFT,
+} from "./agt/client";
 import { sendEmail, invoiceEmailHtml, reminderEmailHtml } from "./_core/email";
 import { generateInvoicePdf } from "./pdf";
 import { generateLedgerPdf } from "./pdf-ledger";
@@ -370,8 +377,11 @@ export const appRouter = router({
       const company = await db.getCompany(requireTenant(ctx.user));
       if (!company) return null;
       // Strip sensitive fields — never send private keys or credentials to the frontend
-      const { rsaPrivateKey, rsaPublicKey, digitalSignatureKey, agtPortalPassword, ...safeCompany } = company as any;
-      return safeCompany;
+      const { rsaPrivateKey, digitalSignatureKey, agtPortalPassword, ...safeCompany } = company as any;
+      return {
+        ...safeCompany,
+        hasRsaKeys: Boolean(rsaPrivateKey),
+      };
     }),
     upsert: adminProcedure
       .input(z.object({
@@ -1414,6 +1424,22 @@ export const appRouter = router({
         return result;
       }),
 
+    getStatus: protectedProcedure
+      .input(z.object({ requestID: z.string().min(1), invoiceId: z.number().optional() }))
+      .mutation(async ({ input, ctx }) => {
+        const result = await agtGetSubmissionStatus(requireTenant(ctx.user), input.requestID, input.invoiceId);
+        if (!result.ok) throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
+        return result;
+      }),
+
+    listInvoices: protectedProcedure
+      .input(z.object({ queryStartDate: z.string().min(10), queryEndDate: z.string().min(10) }))
+      .mutation(async ({ input, ctx }) => {
+        const result = await agtListInvoices(requireTenant(ctx.user), input.queryStartDate, input.queryEndDate);
+        if (!result.ok) throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
+        return result;
+      }),
+
     status: protectedProcedure.query(async ({ ctx }) => {
       const tenantId = requireTenant(ctx.user);
       const company = await db.getCompany(tenantId);
@@ -1421,6 +1447,9 @@ export const appRouter = router({
         configured: Boolean(company?.agtEndpoint && company?.agtPortalUser),
         mode: company?.agtEndpoint ? "live" : "simulacao",
         user: company?.agtPortalUser ?? null,
+        endpoint: company?.agtEndpoint ?? null,
+        hasRsaKeys: Boolean(company?.rsaPrivateKey),
+        softwareValidationNumber: company?.softwareValidationNumber ?? null,
       };
     }),
   }),

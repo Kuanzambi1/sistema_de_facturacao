@@ -1314,16 +1314,25 @@ export default function Landing() {
             <p className="text-sm text-muted-foreground">
               &copy; {new Date().getFullYear()} Facturas K360. Todos os direitos reservados.
             </p>
-            <div className="flex items-center gap-6">
-              <a href="#" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-                Termos de Serviço
-              </a>
-              <a href="#" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+            <div className="flex flex-wrap items-center justify-center gap-6">
+              <Link href="/termos" className="text-xs text-muted-foreground hover:text-foreground transition-colors font-medium">
+                Termos e Condições
+              </Link>
+              <Link href="/privacidade" className="text-xs text-muted-foreground hover:text-foreground transition-colors font-medium">
                 Política de Privacidade
-              </a>
-              <a href="#" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-                Cookies
-              </a>
+              </Link>
+              <Link href="/cookies" className="text-xs text-muted-foreground hover:text-foreground transition-colors font-medium">
+                Política de Cookies
+              </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent("open-cookie-preferences"));
+                }}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors underline cursor-pointer font-medium"
+              >
+                Gerir Cookies
+              </button>
             </div>
           </div>
         </div>

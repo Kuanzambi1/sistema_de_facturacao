@@ -87,9 +87,13 @@ export default function Login() {
         </div>
 
         <div className="relative z-10 flex flex-col justify-between p-12 w-full">
-          <Link href="/" className="inline-flex items-center gap-2 text-white/70 hover:text-white text-sm font-medium transition-colors w-fit">
-            <ArrowLeft className="h-4 w-4" />
-            Voltar ao início
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-sm backdrop-blur-md border border-white/30 shadow-lg shadow-black/10 transition-all duration-200 hover:-translate-x-1 hover:shadow-xl group w-fit"
+            title="Voltar à página inicial do Facturas K360"
+          >
+            <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
+            <span>Voltar ao Início</span>
           </Link>
 
           <div>
@@ -140,12 +144,23 @@ export default function Login() {
       {/* Right panel — form */}
       <div className="flex-1 flex items-center justify-center p-6 bg-muted/30">
         <div className="w-full max-w-md">
-          {/* Mobile logo */}
-          <div className="lg:hidden flex items-center gap-2.5 mb-8 justify-center">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#004b36] to-[#004b36]/80 flex items-center justify-center shadow-md shadow-[#004b36]/20 overflow-hidden">
-              <img src="/logo.png" alt="Facturas K360" className="w-7 h-7 object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-            </div>
-            <span className="text-lg font-bold text-foreground tracking-tight">Facturas K360</span>
+          {/* Mobile Navigation Header with Prominent Voltar ao Início */}
+          <div className="lg:hidden mb-6 flex items-center justify-between gap-3">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-card border-2 border-[#004b36]/20 hover:border-[#004b36]/40 shadow-sm text-foreground hover:text-primary text-xs font-bold transition-all hover:-translate-x-0.5 active:scale-95 group"
+              title="Voltar à página inicial"
+            >
+              <ArrowLeft className="h-4 w-4 text-[#004b36] transition-transform group-hover:-translate-x-0.5" />
+              <span>Voltar ao Início</span>
+            </Link>
+
+            <Link href="/" className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#004b36] to-[#006b4e] flex items-center justify-center shadow-sm overflow-hidden">
+                <img src="/logo.png" alt="Facturas K360" className="w-5 h-5 object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+              </div>
+              <span className="text-sm font-extrabold text-foreground tracking-tight">Facturas K360</span>
+            </Link>
           </div>
 
           <Card className="shadow-xl border-border/50 bg-card/80 backdrop-blur-sm">
@@ -239,13 +254,24 @@ export default function Login() {
                             </DialogHeader>
                             <div className="text-sm text-foreground space-y-4">
                               <p><strong>1. Uso da Plataforma</strong><br/>
-                              O Sistema de Facturação destina-se ao uso profissional para emissão de documentos fiscais e gestão de inventário.</p>
-                              <p><strong>2. Privacidade e Dados</strong><br/>
-                              Os dados registados, incluindo informações de clientes e transações comerciais, são armazenados de forma segura e não serão partilhados com terceiros, exceto mediante obrigação legal.</p>
+                              O Facturas K360 destina-se ao uso profissional para emissão de documentos com relevância fiscal e gestão de inventário em conformidade com a AGT.</p>
+                              <p><strong>2. Privacidade e Dados (Lei n.º 22/11)</strong><br/>
+                              Os dados registados, incluindo informações de clientes e transações comerciais, são armazenados de forma cifrada e não serão partilhados com terceiros, exceto mediante obrigação legal.</p>
                               <p><strong>3. Responsabilidade do Utilizador</strong><br/>
                               A exatidão dos dados inseridos, como NIFs, moradas e taxas de IVA, é da inteira responsabilidade do utilizador.</p>
-                              <p><strong>4. Obrigações Fiscais</strong><br/>
+                              <p><strong>4. Obrigações Fiscais e SAF-T (AO)</strong><br/>
                               Ao utilizar a plataforma, compromete-se a cumprir todas as regras da Administração Geral Tributária (AGT) referentes à comunicação de documentos.</p>
+                              <div className="p-3 rounded-lg bg-muted/50 border border-border/50 text-xs text-muted-foreground flex items-center justify-between">
+                                <span>Deseja ler o documento integral com todos os detalhes legais?</span>
+                                <a
+                                  href="/termos"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[#e66a00] font-bold hover:underline ml-2 whitespace-nowrap"
+                                >
+                                  Ver Versão Completa →
+                                </a>
+                              </div>
                             </div>
                             <DialogFooter className="mt-4">
                               <DialogClose asChild>
